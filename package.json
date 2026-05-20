@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "serve": "vite preview --host",
     "fresh": "vite build && vite preview --host",
-    "android": "npm run build && npx cap copy android && npx cap open android"
+    "android": "npm run build && npx cap copy android && npx cap open android",
+    "deploy": "npm run build && npx cap copy android && android\\gradlew.bat assembleDebug -p android && \"%LOCALAPPDATA%\\Android\\Sdk\\platform-tools\\adb.exe\" -s 10.10.10.85:43645 install -r android\\app\\build\\outputs\\apk\\debug\\app-debug.apk"
   },
   "dependencies": {
     "@bbc/tv-lrud-spatial": "^0.0.16",

@@ -2737,6 +2737,7 @@ function SettingsTopBar({ sectionRefs, contentRef }) {
 
   return (
     <div
+      data-settings-header
       style={{
         position: "sticky",
         top: 0,

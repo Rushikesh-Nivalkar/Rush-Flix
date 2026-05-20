@@ -12,7 +12,7 @@ export default function TVNavBar({ page, onNavigate, onSearch, activeProfile }) 
 
   return (
     <nav className="tv-navbar" data-block-exit="left right">
-      <div className="tv-navbar-logo" tabIndex={0} onClick={() => onNavigate("home")}>
+      <div className="tv-navbar-logo" aria-hidden="true">
         <RushFlixLogo size="sm" animate={false} />
       </div>
       <div className="tv-navbar-items">
@@ -21,6 +21,7 @@ export default function TVNavBar({ page, onNavigate, onSearch, activeProfile }) 
             key={item.id}
             className={`tv-navbar-btn tv-focusable ${page === item.id ? "active" : ""}`}
             tabIndex={0}
+            data-nav-active={page === item.id ? "true" : undefined}
             onClick={item.action ?? (() => onNavigate(item.id))}
           >
             <span className="tv-navbar-icon">{item.icon}</span>

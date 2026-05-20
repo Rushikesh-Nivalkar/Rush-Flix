@@ -34,14 +34,16 @@ const DIR_KEY = {
 
 // Scroll the .tv-main container to make `el` visible, bypassing overflow:hidden
 // ancestors (like .hero) that would block scrollIntoView propagation.
+// Accounts for any sticky sub-header inside .tv-main (e.g. Settings header).
 function scrollMainToShow(el, direction) {
   const mainEl = document.querySelector(".tv-main");
   if (!mainEl) { el.scrollIntoView({ block: "nearest", behavior: "smooth" }); return; }
   const elRect = el.getBoundingClientRect();
   const mainRect = mainEl.getBoundingClientRect();
-  const navbarH = 80;
-  if (direction === "up" && elRect.top < mainRect.top + navbarH) {
-    mainEl.scrollBy({ top: elRect.top - mainRect.top - navbarH, behavior: "smooth" });
+  const stickyHeader = document.querySelector("[data-settings-header]");
+  const topOffset = 80 + (stickyHeader ? stickyHeader.getBoundingClientRect().height : 0);
+  if (direction === "up" && elRect.top < mainRect.top + topOffset) {
+    mainEl.scrollBy({ top: elRect.top - mainRect.top - topOffset, behavior: "smooth" });
   } else if (direction === "down" && elRect.bottom > mainRect.bottom - 16) {
     mainEl.scrollBy({ top: elRect.bottom - mainRect.bottom + 16, behavior: "smooth" });
   }
@@ -62,7 +64,14 @@ export function useTVNavigation({ onBack } = {}) {
     // then expand to full document — no manual zone logic needed.
     const next = getNextFocus(active, DIR_KEY[direction]);
     if (next) {
-      next.focus();
+      // When navigating up into the navbar, land on the currently active tab
+      const navbar = document.querySelector(".tv-navbar");
+      if (direction === "up" && navbar && navbar.contains(next)) {
+        const activeBtn = navbar.querySelector("[data-nav-active='true']");
+        (activeBtn || next).focus();
+      } else {
+        next.focus();
+      }
       scrollMainToShow(next, direction);
     } else if (direction === "up") {
       // lrud-spatial found nothing above — element is likely scrolled off-screen.

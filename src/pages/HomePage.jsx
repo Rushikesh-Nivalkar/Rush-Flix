@@ -1,11 +1,10 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import MediaCard from "../components/MediaCard";
-import TrendingCarousel from "../components/TrendingCarousel";
 import { PlayIcon, StarIcon, FilmIcon } from "../components/Icons";
 import { imgUrl, tmdbFetch } from "../utils/api";
 import { useRatings, getRatingForItem } from "../utils/useRatings";
 import { isRestricted } from "../utils/ageRating";
-import { loadHomeLayout, loadHomeViewMode } from "../utils/homeLayout";
+import { loadHomeLayout } from "../utils/homeLayout";
 import { fetchPublicDomainMovies } from "../utils/archiveOrg";
 
 // TMDB genre IDs used for genre rows
@@ -51,7 +50,6 @@ export default function HomePage({
 
   const [layout] = useState(() => loadHomeLayout());
   const { order: rowOrder, visible: rowVisible } = layout;
-  const [viewMode] = useState(() => loadHomeViewMode());
 
   // ── Rating helpers ────────────────────────────────────────────────────────
   const allItems = useMemo(() => [
@@ -195,43 +193,31 @@ export default function HomePage({
 
   const renderCarouselOrList = (key, title, titleHighlight, items) => {
     if (!items || items.length === 0) return null;
-    if (viewMode === "list") {
-      return (
-        <div key={key} className="section">
-          <div className="section-title">
-            {title}{titleHighlight && <> &nbsp;<span style={{ color: "var(--red)" }}>{titleHighlight}</span></>}
-          </div>
-          <div className="cards-row">
-            {items.map((item) => {
-              const type = item.media_type === "tv" ? "tv" : "movie";
-              const rd = enrichedRatingsMap[`${type}_${item.id}`] || {};
-              return (
-                <MediaCard
-                  key={`${item.media_type}_${item.id}`}
-                  item={item}
-                  onClick={() => onSelect(item)}
-                  progress={0}
-                  watched={watched}
-                  onMarkWatched={onMarkWatched}
-                  onMarkUnwatched={onMarkUnwatched}
-                  ageRating={rd.cert}
-                  restricted={rd.restricted}
-                />
-              );
-            })}
-          </div>
-        </div>
-      );
-    }
     return (
-      <TrendingCarousel
-        key={key}
-        items={items}
-        title={title}
-        titleHighlight={titleHighlight}
-        onSelect={onSelect}
-        ratingsMap={enrichedRatingsMap}
-      />
+      <div key={key} className="section">
+        <div className="section-title">
+          {title}{titleHighlight && <> &nbsp;<span style={{ color: "var(--red)" }}>{titleHighlight}</span></>}
+        </div>
+        <div className="cards-row">
+          {items.map((item) => {
+            const type = item.media_type === "tv" ? "tv" : "movie";
+            const rd = enrichedRatingsMap[`${type}_${item.id}`] || {};
+            return (
+              <MediaCard
+                key={`${item.media_type}_${item.id}`}
+                item={item}
+                onClick={() => onSelect(item)}
+                progress={0}
+                watched={watched}
+                onMarkWatched={onMarkWatched}
+                onMarkUnwatched={onMarkUnwatched}
+                ageRating={rd.cert}
+                restricted={rd.restricted}
+              />
+            );
+          })}
+        </div>
+      </div>
     );
   };
 

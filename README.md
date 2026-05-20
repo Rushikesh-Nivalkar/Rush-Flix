@@ -220,14 +220,14 @@ Rush-Flix/
 ├── src/
 │   ├── components/
 │   │   ├── TVPlayer.jsx          # Main player — video mode + iframe embed mode
-│   │   ├── TVNavBar.jsx          # Side navigation bar
-│   │   ├── TrendingCarousel.jsx  # Hero carousel with D-pad support
-│   │   ├── MediaCard.jsx         # Movie/show card with progress bar overlay
-│   │   ├── RushFlixLogo.jsx      # Animated logo (icon mark + wordmark)
-│   │   ├── SearchModal.jsx       # Full-screen search overlay
+│   │   ├── TVNavBar.jsx          # Top navigation bar — non-interactive logo + nav tabs
+│   │   ├── TrendingCarousel.jsx  # Spotlight carousel (used on detail pages)
+│   │   ├── MediaCard.jsx         # Movie/show card with progress bar + D-pad focus
+│   │   ├── RushFlixLogo.jsx      # Animated RF logo (icon mark + wordmark)
+│   │   ├── SearchModal.jsx       # Full-screen search overlay with D-pad trap
 │   │   └── TrailerModal.jsx      # YouTube trailer overlay
 │   ├── pages/
-│   │   ├── HomePage.jsx          # Trending rows + Continue Watching
+│   │   ├── HomePage.jsx          # Flat horizontal card rows — Continue Watching, Trending, etc.
 │   │   ├── MoviePage.jsx         # Movie detail page + player
 │   │   ├── TVPage.jsx            # TV show detail + episode list + player
 │   │   ├── LibraryPage.jsx       # Continue Watching, Watchlist, History
@@ -237,7 +237,7 @@ Rush-Flix/
 │   │   └── PhoneSetupPage.jsx    # QR-code phone setup screen
 │   ├── utils/
 │   │   ├── api.js                # TMDB fetch, player sources, AniList
-│   │   ├── tvNav.js              # D-pad spatial navigation hook
+│   │   ├── tvNav.js              # D-pad spatial navigation — lrud-spatial + sticky-header scroll fix
 │   │   ├── storage.js            # localStorage helpers + STORAGE_KEYS
 │   │   ├── profiles.js           # Profile management
 │   │   ├── aniSkip.js            # AniSkip intro/outro timings
@@ -245,7 +245,8 @@ Rush-Flix/
 │   │   ├── lanSync.js            # LAN sync push/pull
 │   │   └── appearance.js         # Accent colour + theme helpers
 │   ├── styles/
-│   │   └── global.css            # All app styles (TV-optimised)
+│   │   ├── global.css            # Base styles — layout, cards, search modal, typography
+│   │   └── tv.css                # TV-specific overrides — card sizes, focus rings, D-pad nav
 │   └── App.jsx                   # Root component — routing, profiles, state
 ├── android/
 │   └── app/src/main/java/com/rushflix/app/

@@ -54,6 +54,7 @@ public class MainActivity extends BridgeActivity {
     private class RushFlixBridge {
         @JavascriptInterface
         public void openPlayer(String url, double seekTo) {
+            Log.d(TAG, "RushFlixBridge.openPlayer called: " + url);
             runOnUiThread(() -> showPlayerOverlay(url, seekTo));
         }
 
@@ -111,8 +112,9 @@ public class MainActivity extends BridgeActivity {
             new RushFlixProgress(mainWebView), "RushFlixProgress");
 
         overlayWebView.setVisibility(View.GONE);
-        ViewGroup parent = (ViewGroup) mainWebView.getParent();
-        parent.addView(overlayWebView,
+        // Add to decor view root — guaranteed full-screen, always above Capacitor's layout
+        ViewGroup decorView = (ViewGroup) getWindow().getDecorView();
+        decorView.addView(overlayWebView,
             new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT));
@@ -120,8 +122,10 @@ public class MainActivity extends BridgeActivity {
 
     private void showPlayerOverlay(String url, double seekTo) {
         if (overlayWebView == null) return;
+        Log.d(TAG, "showPlayerOverlay: " + url + " seekTo=" + seekTo);
         pendingSeekTo = seekTo;
         overlayWebView.setVisibility(View.VISIBLE);
+        overlayWebView.bringToFront();
         overlayWebView.loadUrl(url);
         overlayWebView.requestFocus();
         overlayVisible = true;
@@ -186,11 +190,21 @@ public class MainActivity extends BridgeActivity {
                     case KeyEvent.KEYCODE_DPAD_CENTER:
                     case KeyEvent.KEYCODE_NUMPAD_ENTER:
                     case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
+                        // If video loaded: toggle play/pause.
+                        // If not yet (player overlay visible): click center of screen
+                        // which is where Videasy's play button sits.
                         overlayWebView.evaluateJavascript(
+                            "(function(){" +
                             "if(window._rushflixVideo){" +
                             "if(window._rushflixVideo.paused)" +
                             "window._rushflixVideo.play().catch(function(){});" +
-                            "else window._rushflixVideo.pause();}", null);
+                            "else window._rushflixVideo.pause();" +
+                            "}else{" +
+                            "var cx=window.innerWidth/2,cy=window.innerHeight/2;" +
+                            "var el=document.elementFromPoint(cx,cy);" +
+                            "if(el){el.click();}" +
+                            "}" +
+                            "})()", null);
                         return true;
                     case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD:
                         overlayWebView.evaluateJavascript(

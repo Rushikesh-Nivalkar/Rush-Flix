@@ -7,8 +7,8 @@
 :root {
   --tv-navbar-h: 72px;
   --tv-safe: 48px;          /* overscan-safe margin all sides */
-  --tv-card-w: 200px;
-  --tv-card-h: 300px;
+  --tv-card-w: 140px;
+  --tv-card-h: 210px;
   --tv-focus-color: #fff;
   --tv-focus-ring: 0 0 0 4px var(--tv-focus-color), 0 0 0 6px rgba(229,9,20,0.8);
 }
@@ -475,6 +475,19 @@ input:focus,
 }
 .cards-row::-webkit-scrollbar { display: none; }
 
+/* Cards inside a row get fixed TV size — prevents stretching in Continue Watching etc. */
+.cards-row .card {
+  flex-shrink: 0;
+  width: var(--tv-card-w);
+}
+
+.cards-row .card:focus {
+  transform: scale(1.06);
+  box-shadow: var(--tv-focus-ring);
+  z-index: 10;
+  outline: none;
+}
+
 .media-card {
   flex-shrink: 0;
   width: var(--tv-card-w);
@@ -537,7 +550,7 @@ input:focus,
 }
 
 .search-input-wrap {
-  width: min(800px, 80vw);
+  width: min(680px, 68vw);
 }
 
 .search-input {
