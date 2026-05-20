@@ -185,7 +185,7 @@ query ($search: String, $type: MediaType) {
 }`;
 
 // ── AniList cache (localStorage + in-memory) ──────────────────────────────────
-const ANILIST_CACHE_KEY = "streambert_anilistCache";
+const ANILIST_CACHE_KEY = "rushflix_anilistCache";
 const ANILIST_CACHE_TTL = 1000 * 60 * 60 * 24 * 7; // 7 days
 
 // loaded once on first use, flushed to localStorage on write.

@@ -42,12 +42,12 @@ Go back to your [API Settings](https://www.themoviedb.org/settings/api) and copy
 
 ---
 
-## 5. Paste It Into Streambert
+## 5. Paste It Into Rush Flix
 
-Paste the token into the Streambert setup screen and press **Let's go**. And That's it!
+Paste the token into the Rush Flix setup screen and press **Let's go**. And That's it!
 
 ---
 
 ## Something not working?
 
-If this guide is outdated or you're running into any issues, please [open an issue](https://github.com/truelockmc/streambert/issues/new) on GitHub.
+If this guide is outdated or you're running into any issues, please [open an issue](https://github.com/Rushikesh-Nivalkar/Rush-Flix/issues/new) on GitHub.
