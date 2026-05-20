@@ -1134,6 +1134,51 @@ input:focus,
   display: block;
 }
 
+/* Browser-mode Watch button — loads iframe on click so user gesture propagates to autoplay */
+.iframe-watch-btn {
+  position: absolute;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: rgba(0, 0, 0, 0.6);
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-body);
+  color: var(--text);
+  transition: background 0.15s;
+}
+.iframe-watch-btn:focus,
+.iframe-watch-btn:hover { background: rgba(0, 0, 0, 0.35); outline: none; }
+
+.iframe-watch-btn__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: var(--red);
+  font-size: 40px;
+  box-shadow: 0 0 0 6px rgba(229,9,20,0.35);
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+.iframe-watch-btn:focus .iframe-watch-btn__icon,
+.iframe-watch-btn:hover .iframe-watch-btn__icon {
+  transform: scale(1.12);
+  box-shadow: 0 0 0 10px rgba(229,9,20,0.45);
+}
+.iframe-watch-btn__label {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.9);
+}
+
 /* Close button overlaid on player */
 .tv-player-close {
   position: absolute;

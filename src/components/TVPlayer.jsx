@@ -62,6 +62,7 @@ export default function TVPlayer({
   );
   const [showLangPicker, setShowLangPicker] = useState(false);
   const [subtitleLoading, setSubtitleLoading] = useState(false);
+  const [iframeActive, setIframeActive] = useState(false);
 
   const subtitleSize = getCurrentPStore().get(STORAGE_KEYS.SUBTITLE_SIZE) || "medium";
   const subtitlePosition = getCurrentPStore().get(STORAGE_KEYS.SUBTITLE_POSITION) || "bottom";
@@ -205,6 +206,9 @@ export default function TVPlayer({
     progressInterval.current = setInterval(saveProgress, 5000);
     return () => clearInterval(progressInterval.current);
   }, [mode, saveProgress]);
+
+  // Reset iframe gate on source/url change so the Watch button reappears.
+  useEffect(() => { setIframeActive(false); }, [url]);
 
   // Open native overlay WebView when an embed URL is active (APK only).
   // Falls back gracefully — browser keeps using the <iframe> below.
@@ -595,16 +599,28 @@ export default function TVPlayer({
               ))}
             </div>
           )}
-          {/* Browser fallback only — on APK the overlay WebView handles rendering */}
+          {/* Browser fallback — APK uses native overlay WebView instead */}
           {!window.RushFlixBridge && (
-            <iframe
-              ref={iframeRef}
-              className="tv-iframe"
-              src={url}
-              allowFullScreen
-              allow="autoplay; fullscreen; picture-in-picture"
-              onLoad={handleIframeLoad}
-            />
+            iframeActive ? (
+              <iframe
+                ref={iframeRef}
+                className="tv-iframe"
+                src={url}
+                allowFullScreen
+                allow="autoplay; fullscreen; picture-in-picture"
+                onLoad={handleIframeLoad}
+              />
+            ) : (
+              <button
+                className="iframe-watch-btn tv-focusable"
+                tabIndex={0}
+                autoFocus
+                onClick={() => setIframeActive(true)}
+              >
+                <span className="iframe-watch-btn__icon">▶</span>
+                <span className="iframe-watch-btn__label">Watch</span>
+              </button>
+            )
           )}
 
           {hasNextEp && (
