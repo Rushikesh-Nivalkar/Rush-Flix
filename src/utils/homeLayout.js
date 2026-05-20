@@ -45,20 +45,10 @@ export function loadHomeLayout() {
   return { order, visible };
 }
 
-export function saveHomeLayout(order, visible) {
-  storage.set("homeRowOrder", order);
-  storage.set("homeRowVisible", visible);
-}
-
-/** "carousel" (default) | "list" */
 export function loadHomeViewMode() {
   return storage.get("homeViewMode") || "carousel";
 }
 
 export function saveHomeViewMode(mode) {
   storage.set("homeViewMode", mode);
-}
-
-export function loadStartPage() {
-  return storage.get("startPage") || "home";
 }

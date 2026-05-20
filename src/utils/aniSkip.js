@@ -20,12 +20,6 @@ function setCache(cache) {
   } catch {}
 }
 
-export function clearAniSkipCache() {
-  try {
-    localStorage.removeItem(CACHE_KEY);
-  } catch {}
-}
-
 /**
  * Fetch intro/outro timings for an episode, with 7-day localStorage cache.
  * @param {number} malId  MyAnimeList ID (anilistData.idMal)

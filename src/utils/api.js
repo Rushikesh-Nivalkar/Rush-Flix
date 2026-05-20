@@ -123,12 +123,6 @@ export const getSourceUrl = (sourceId, type, id, season, ep) => {
   return type === "movie" ? src.movieUrl(id) : src.tvUrl(id, season, ep);
 };
 
-export const sourceSupportsProgress = (sourceId) =>
-  PLAYER_SOURCES.find((s) => s.id === sourceId)?.supportsProgress ?? false;
-
-export const sourceIsAsync = (sourceId) =>
-  PLAYER_SOURCES.find((s) => s.id === sourceId)?.async ?? false;
-
 export const NON_ANIME_DEFAULT_SOURCE = "videasy";
 export const ANIME_DEFAULT_SOURCE = "videasy";
 
@@ -285,51 +279,6 @@ export const fetchAnilistData = async (
   }
 };
 
-/**
- * Build an ordered list of seasons from AniList data.
- * AniList represents each season of a series as a separate Media entry
- * linked by SEQUEL/PREQUEL relations. This function walks the SEQUEL chain
- * starting from the fetched entry and returns seasons sorted by air date.
- *
- * Returns: [{ seasonNum, title, episodes, year, month }]
- */
-export const buildAnilistSeasons = (anilistData) => {
-  if (!anilistData) return null;
-
-  const main = {
-    id: anilistData.id,
-    title:
-      anilistData.title?.english ||
-      anilistData.title?.romaji ||
-      anilistData.title?.native,
-    episodes: anilistData.episodes || null,
-    year: anilistData.startDate?.year || anilistData.seasonYear || 9999,
-    month: anilistData.startDate?.month || 0,
-  };
-
-  // Collect direct TV-format sequels from relations
-  const sequels = (anilistData.relations?.edges || [])
-    .filter(
-      (e) =>
-        e.relationType === "SEQUEL" &&
-        e.node.type === "ANIME" &&
-        (e.node.format === "TV" || e.node.format === "TV_SHORT"),
-    )
-    .map((e) => ({
-      id: e.node.id,
-      title: e.node.title?.english || e.node.title?.romaji,
-      episodes: e.node.episodes || null,
-      year: e.node.startDate?.year || e.node.seasonYear || 9999,
-      month: e.node.startDate?.month || 0,
-    }));
-
-  const all = [main, ...sequels].sort((a, b) =>
-    a.year !== b.year ? a.year - b.year : a.month - b.month,
-  );
-
-  return all.map((s, i) => ({ seasonNum: i + 1, ...s }));
-};
-
 // TMDB genre ID 16 = Animation. We treat it as anime when origin_country includes JP or language is jp
 export const isAnimeContent = (item, details) => {
   const d = details || item;
@@ -340,50 +289,3 @@ export const isAnimeContent = (item, details) => {
   return hasAnimation && (lang === "ja" || countries.includes("JP"));
 };
 
-// Default sources
-// Defaults defined in PLAYER_SOURCES block above
-
-// ── Episode Group fetch (localStorage + in-memory cache, 7-day TTL) ─────────
-// Episode groups almost never change, so we cache aggressively across sessions.
-const EG_CACHE_KEY = "streambert_episodeGroupCache";
-const EG_CACHE_TTL = 1000 * 60 * 60 * 24 * 7; // 7 days
-
-let _egCache = null;
-
-function getEgCache() {
-  if (_egCache) return _egCache;
-  try {
-    const raw = localStorage.getItem(EG_CACHE_KEY);
-    _egCache = raw ? JSON.parse(raw) : {};
-  } catch {
-    _egCache = {};
-  }
-  // Evict stale entries once on load
-  const now = Date.now();
-  for (const key of Object.keys(_egCache)) {
-    if (now - _egCache[key].ts > EG_CACHE_TTL) delete _egCache[key];
-  }
-  return _egCache;
-}
-
-let _egFlushTimer = null;
-function flushEgCache() {
-  if (_egFlushTimer) clearTimeout(_egFlushTimer);
-  _egFlushTimer = setTimeout(() => {
-    _egFlushTimer = null;
-    try {
-      localStorage.setItem(EG_CACHE_KEY, JSON.stringify(_egCache));
-    } catch {}
-  }, 500);
-}
-
-export const fetchEpisodeGroup = async (groupId, apiKey) => {
-  const cache = getEgCache();
-  const entry = cache[groupId];
-  if (entry && Date.now() - entry.ts <= EG_CACHE_TTL) return entry.data;
-
-  const data = await tmdbFetch(`/tv/episode_group/${groupId}`, apiKey);
-  cache[groupId] = { data, ts: Date.now() };
-  flushEgCache();
-  return data;
-};

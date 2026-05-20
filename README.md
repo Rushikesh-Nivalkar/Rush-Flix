@@ -221,7 +221,6 @@ Rush-Flix/
 │   ├── components/
 │   │   ├── TVPlayer.jsx          # Main player — video mode + iframe embed mode
 │   │   ├── TVNavBar.jsx          # Top navigation bar — non-interactive logo + nav tabs
-│   │   ├── TrendingCarousel.jsx  # Spotlight carousel (used on detail pages)
 │   │   ├── MediaCard.jsx         # Movie/show card with progress bar + D-pad focus
 │   │   ├── RushFlixLogo.jsx      # Animated RF logo (icon mark + wordmark)
 │   │   ├── SearchModal.jsx       # Full-screen search overlay with D-pad trap
