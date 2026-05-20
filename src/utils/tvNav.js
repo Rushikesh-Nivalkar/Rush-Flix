@@ -32,6 +32,21 @@ const DIR_KEY = {
   up: "ArrowUp", down: "ArrowDown", left: "ArrowLeft", right: "ArrowRight",
 };
 
+// Scroll the .tv-main container to make `el` visible, bypassing overflow:hidden
+// ancestors (like .hero) that would block scrollIntoView propagation.
+function scrollMainToShow(el, direction) {
+  const mainEl = document.querySelector(".tv-main");
+  if (!mainEl) { el.scrollIntoView({ block: "nearest", behavior: "smooth" }); return; }
+  const elRect = el.getBoundingClientRect();
+  const mainRect = mainEl.getBoundingClientRect();
+  const navbarH = 80;
+  if (direction === "up" && elRect.top < mainRect.top + navbarH) {
+    mainEl.scrollBy({ top: elRect.top - mainRect.top - navbarH, behavior: "smooth" });
+  } else if (direction === "down" && elRect.bottom > mainRect.bottom - 16) {
+    mainEl.scrollBy({ top: elRect.bottom - mainRect.bottom + 16, behavior: "smooth" });
+  }
+}
+
 export function useTVNavigation({ onBack } = {}) {
   const navigate = useCallback((direction) => {
     const active = document.activeElement;
@@ -48,10 +63,15 @@ export function useTVNavigation({ onBack } = {}) {
     const next = getNextFocus(active, DIR_KEY[direction]);
     if (next) {
       next.focus();
-      next.scrollIntoView({
-        block: direction === "up" ? "start" : "nearest",
-        behavior: "smooth",
-      });
+      scrollMainToShow(next, direction);
+    } else if (direction === "up") {
+      // lrud-spatial found nothing above — element is likely scrolled off-screen.
+      // Scroll .tv-main back to top and land focus on the first focusable element.
+      const mainEl = document.querySelector(".tv-main");
+      if (mainEl && mainEl.scrollTop > 0) {
+        mainEl.scrollTo({ top: 0, behavior: "smooth" });
+        setTimeout(() => getFocusableElements()[0]?.focus(), 300);
+      }
     }
   }, []);
 
