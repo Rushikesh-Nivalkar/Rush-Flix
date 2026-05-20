@@ -62,6 +62,7 @@ export default function TVPlayer({
   );
   const [showLangPicker, setShowLangPicker] = useState(false);
   const [subtitleLoading, setSubtitleLoading] = useState(false);
+  const [showTapToPlay, setShowTapToPlay] = useState(false);
 
   const subtitleSize = getCurrentPStore().get(STORAGE_KEYS.SUBTITLE_SIZE) || "medium";
   const subtitlePosition = getCurrentPStore().get(STORAGE_KEYS.SUBTITLE_POSITION) || "bottom";
@@ -219,18 +220,15 @@ export default function TVPlayer({
     return () => window.removeEventListener("message", handler);
   }, [mode, onProgress, onTimestamp]);
 
-  // On iframe load: focus it so D-pad events reach it, then send the play+seek command.
+  // Show Tap to Play whenever a new iframe URL is loaded.
+  useEffect(() => {
+    if (mode === "iframe" && url) setShowTapToPlay(true);
+  }, [url, mode]);
+
+  // On iframe load: keep Tap to Play visible for manual gesture trigger.
   const handleIframeLoad = useCallback(() => {
-    const f = iframeRef.current;
-    if (!f) return;
-    f.focus();
-    try {
-      f.contentWindow.postMessage({
-        type: "rushflix_play",
-        seekTo: initialTimestamp > 30 ? Math.floor(initialTimestamp) : 0,
-      }, "*");
-    } catch {}
-  }, [initialTimestamp]);
+    setShowTapToPlay(true);
+  }, []);
 
   // Restore seek position once video metadata is loaded
   const handleCanPlay = useCallback(() => {
@@ -591,6 +589,26 @@ export default function TVPlayer({
             allow="autoplay; fullscreen; picture-in-picture"
             onLoad={handleIframeLoad}
           />
+
+          {showTapToPlay && (
+            <button
+              className="iframe-tap-to-play tv-focusable"
+              tabIndex={0}
+              autoFocus
+              onClick={() => {
+                setShowTapToPlay(false);
+                try {
+                  iframeRef.current?.contentWindow?.postMessage({
+                    type: "rushflix_play",
+                    seekTo: initialTimestamp > 30 ? Math.floor(initialTimestamp) : 0,
+                  }, "*");
+                } catch {}
+              }}
+            >
+              <span className="iframe-tap-to-play__icon">▶</span>
+              <span className="iframe-tap-to-play__label">Tap to Play</span>
+            </button>
+          )}
 
           {hasNextEp && (
             <button
