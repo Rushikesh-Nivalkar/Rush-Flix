@@ -1,8 +1,10 @@
 package com.rushflix.app;
 
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.util.Log;
 import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebView;
@@ -154,6 +156,23 @@ public class MainActivity extends BridgeActivity {
                     return super.shouldInterceptRequest(view, request);
                 }
             }
+
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                if (url == null) return;
+                try {
+                    String host = new URL(url).getHost();
+                    if (host == null) return;
+                    boolean isEmbed =
+                        host.equals("player.videasy.net") ||
+                        host.equals("vidsrc.to") ||
+                        host.endsWith(".vidsrc.to") ||
+                        host.equals("www.2embed.online") ||
+                        host.endsWith(".2embed.online");
+                    if (isEmbed) scheduleAutoplayTap(view);
+                } catch (Exception ignored) {}
+            }
         });
 
         try {
@@ -250,6 +269,26 @@ public class MainActivity extends BridgeActivity {
             tokenRelayServer.stop();
             tokenRelayServer = null;
         }
+    }
+
+    // Dispatches a real touch tap at the WebView centre after a delay.
+    // Embed players gate autoplay behind a user-gesture; this satisfies that gate
+    // without requiring the user to physically tap the screen on TV.
+    private void scheduleAutoplayTap(WebView webView) {
+        webView.postDelayed(() -> {
+            int w = webView.getWidth();
+            int h = webView.getHeight();
+            if (w == 0 || h == 0) return;
+            float x = w / 2f;
+            float y = h / 2f;
+            long t = SystemClock.uptimeMillis();
+            MotionEvent down = MotionEvent.obtain(t, t, MotionEvent.ACTION_DOWN, x, y, 0);
+            MotionEvent up   = MotionEvent.obtain(t, t + 50, MotionEvent.ACTION_UP,   x, y, 0);
+            webView.dispatchTouchEvent(down);
+            webView.dispatchTouchEvent(up);
+            down.recycle();
+            up.recycle();
+        }, 2500);
     }
 
     private static byte[] readBytes(InputStream is) throws IOException {
