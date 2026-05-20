@@ -62,7 +62,6 @@ export default function TVPlayer({
   );
   const [showLangPicker, setShowLangPicker] = useState(false);
   const [subtitleLoading, setSubtitleLoading] = useState(false);
-  const [showTapToPlay, setShowTapToPlay] = useState(false);
 
   const subtitleSize = getCurrentPStore().get(STORAGE_KEYS.SUBTITLE_SIZE) || "medium";
   const subtitlePosition = getCurrentPStore().get(STORAGE_KEYS.SUBTITLE_POSITION) || "bottom";
@@ -102,13 +101,17 @@ export default function TVPlayer({
         onClose();
         return;
       }
-      // In iframe mode: route ArrowLeft/Right as ±10s seek via postMessage to injected script
+      // In iframe mode: seek via native bridge (APK) or postMessage fallback (browser)
       if (mode === "iframe") {
         if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
           e.preventDefault();
           e.stopImmediatePropagation();
           const delta = e.key === "ArrowRight" ? 10 : -10;
-          try { iframeRef.current?.contentWindow?.postMessage({ type: "rushflix_seek_relative", delta }, "*"); } catch {}
+          if (window.RushFlixBridge) {
+            try { window.RushFlixBridge.seekRelative(delta); } catch {}
+          } else {
+            try { iframeRef.current?.contentWindow?.postMessage({ type: "rushflix_seek_relative", delta }, "*"); } catch {}
+          }
         }
         return;
       }
@@ -203,31 +206,42 @@ export default function TVPlayer({
     return () => clearInterval(progressInterval.current);
   }, [mode, saveProgress]);
 
-  // Listen for rushflix_progress messages posted by the injected script inside the iframe.
-  // The injected script (added via shouldInterceptRequest) reports currentTime+duration every 5s.
+  // Open native overlay WebView when an embed URL is active (APK only).
+  // Falls back gracefully — browser keeps using the <iframe> below.
+  useEffect(() => {
+    if (mode !== "iframe" || !url) return;
+    const bridge = window.RushFlixBridge;
+    if (!bridge) return;
+    const seekTo = initialTimestamp > 30 ? Math.floor(initialTimestamp) : 0;
+    bridge.openPlayer(url, seekTo);
+    return () => { try { bridge.closePlayer(); } catch {} };
+  }, [url, mode]); // initialTimestamp excluded — don't re-seek on prop update
+
+  // Listen for progress and player-closed messages from the native bridge.
+  // rushflix_progress: relayed by RushFlixProgress JavascriptInterface every 5s.
+  // rushflix_player_closed: fired when user presses Back on the TV remote.
   useEffect(() => {
     if (mode !== "iframe") return;
     const handler = (e) => {
       const d = e.data;
-      if (!d || typeof d !== "object" || d.type !== "rushflix_progress") return;
-      const { currentTime, duration } = d;
-      if (!duration) return;
-      const pct = (currentTime / duration) * 100;
-      onProgress?.(pct);
-      onTimestamp?.(currentTime);
+      if (!d || typeof d !== "object") return;
+      if (d.type === "rushflix_progress") {
+        const { currentTime, duration } = d;
+        if (!duration) return;
+        onProgress?.((currentTime / duration) * 100);
+        onTimestamp?.(currentTime);
+      }
+      if (d.type === "rushflix_player_closed") {
+        onClose();
+      }
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
-  }, [mode, onProgress, onTimestamp]);
+  }, [mode, onProgress, onTimestamp, onClose]);
 
-  // Show Tap to Play whenever a new iframe URL is loaded.
-  useEffect(() => {
-    if (mode === "iframe" && url) setShowTapToPlay(true);
-  }, [url, mode]);
-
-  // On iframe load: keep Tap to Play visible for manual gesture trigger.
+  // Browser fallback: focus iframe on load (no postMessage — no injected script in browser).
   const handleIframeLoad = useCallback(() => {
-    setShowTapToPlay(true);
+    iframeRef.current?.focus();
   }, []);
 
   // Restore seek position once video metadata is loaded
@@ -581,33 +595,16 @@ export default function TVPlayer({
               ))}
             </div>
           )}
-          <iframe
-            ref={iframeRef}
-            className="tv-iframe"
-            src={url}
-            allowFullScreen
-            allow="autoplay; fullscreen; picture-in-picture"
-            onLoad={handleIframeLoad}
-          />
-
-          {showTapToPlay && (
-            <button
-              className="iframe-tap-to-play tv-focusable"
-              tabIndex={0}
-              autoFocus
-              onClick={() => {
-                setShowTapToPlay(false);
-                try {
-                  iframeRef.current?.contentWindow?.postMessage({
-                    type: "rushflix_play",
-                    seekTo: initialTimestamp > 30 ? Math.floor(initialTimestamp) : 0,
-                  }, "*");
-                } catch {}
-              }}
-            >
-              <span className="iframe-tap-to-play__icon">▶</span>
-              <span className="iframe-tap-to-play__label">Tap to Play</span>
-            </button>
+          {/* Browser fallback only — on APK the overlay WebView handles rendering */}
+          {!window.RushFlixBridge && (
+            <iframe
+              ref={iframeRef}
+              className="tv-iframe"
+              src={url}
+              allowFullScreen
+              allow="autoplay; fullscreen; picture-in-picture"
+              onLoad={handleIframeLoad}
+            />
           )}
 
           {hasNextEp && (
