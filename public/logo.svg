@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <rect width="200" height="200" fill="#0A0A0A" rx="20"/>
+  <!-- R -->
+  <rect x="28" y="36" width="14" height="128" fill="#E50914"/>
+  <rect x="28" y="36" width="56" height="14"  fill="#E50914"/>
+  <rect x="70" y="36" width="14" height="52"  fill="#E50914"/>
+  <rect x="28" y="74" width="56" height="14"  fill="#E50914"/>
+  <polygon points="70,88 84,88 102,164 88,164" fill="#E50914"/>
+  <!-- F -->
+  <rect x="112" y="36" width="14" height="128" fill="#E50914"/>
+  <rect x="112" y="36" width="58" height="14"  fill="#E50914"/>
+  <rect x="112" y="74" width="46" height="14"  fill="#E50914"/>
+  <!-- scan line -->
+  <rect x="18" y="108" width="164" height="2" fill="#E50914" opacity="0.28"/>
+</svg>

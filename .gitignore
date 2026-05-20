@@ -1,0 +1,18 @@
+node_modules/
+temp/
+download_config.ini
+dist/
+*.zip
+*secret.txt
+.env.local
+.env.*.local
+
+# Android build artifacts
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/captures/
+android/.idea/
+*.apk
+*.aab

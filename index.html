@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- TV viewport: fixed 1920x1080, no user scaling -->
+    <meta name="viewport" content="width=1920, height=1080, initial-scale=1.0" />
+    <meta name="theme-color" content="#0a0a0a" />
+    <!-- Prevent text size adjustment on TV browsers -->
+    <meta name="HandheldFriendly" content="true" />
+    <title>Rush Flix</title>
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <!-- Chromecast Web Receiver / Cast SDK (sender side for phone casting) -->
+    <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1" defer></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!--
+        RF Monogram — Rush Flix adaptive icon foreground.
+        Safe zone: 21dp–87dp on each axis. Monogram centered within it.
+        Background colour supplied by @color/ic_launcher_background (#0A0A0A).
+    -->
+
+    <!-- R letterform -->
+    <path
+        android:fillColor="#E50914"
+        android:pathData="
+            M 15,19 h 8 v 69 h -8 Z
+            M 15,19 h 30 v 8 h -30 Z
+            M 38,19 h 8 v 28 h -8 Z
+            M 15,40 h 30 v 8 h -30 Z
+            M 38,48 L 45,48 L 55,89 L 48,89 Z"/>
+
+    <!-- F letterform -->
+    <path
+        android:fillColor="#E50914"
+        android:pathData="
+            M 60,19 h 8 v 69 h -8 Z
+            M 60,19 h 31 v 8 h -31 Z
+            M 60,40 h 25 v 8 h -25 Z"/>
+
+    <!-- Horizontal scan line — TV/broadcast reference -->
+    <path
+        android:fillColor="#E50914"
+        android:alpha="0.28"
+        android:pathData="M 13,58 h 80 v 1.5 h -80 Z"/>
+
+</vector>

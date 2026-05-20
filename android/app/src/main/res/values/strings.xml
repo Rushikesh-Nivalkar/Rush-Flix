@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Rush Flix</string>
+    <string name="title_activity_main">Rush Flix</string>
+    <string name="package_name">com.rushflix.app</string>
+    <string name="custom_url_scheme">com.rushflix.app</string>
+</resources>
