@@ -18,6 +18,7 @@ const MediaCard = memo(function MediaCard({
   onMarkUnwatched,
   ageRating,
   restricted,
+  isUpNext,
 }) {
   const title = item.title || item.name;
   const year = (item.release_date || item.first_air_date || "").slice(0, 4);
@@ -127,7 +128,9 @@ const MediaCard = memo(function MediaCard({
               </div>
             )}
           </div>
-          {!isUnreleased && progress > 0 && !isWatched && (
+          {isUpNext ? (
+            <div className="card-upnext-badge">▶ Up Next</div>
+          ) : !isUnreleased && progress > 0 && !isWatched && (
             <div className="card-progress">
               <div
                 className="card-progress-fill"

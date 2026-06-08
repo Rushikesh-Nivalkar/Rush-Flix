@@ -7,16 +7,7 @@ import { isRestricted } from "../utils/ageRating";
 import { loadHomeLayout } from "../utils/homeLayout";
 import { fetchPublicDomainMovies } from "../utils/archiveOrg";
 
-// TMDB genre IDs used for genre rows
-const GENRE_IDS = { genreAction: 28, genreDrama: 18, genreComedy: 35 };
 
-function getRecentHistoryItem(history) {
-  if (!history || history.length === 0) return null;
-  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-  const recent = history.filter((h) => h.watchedAt && h.watchedAt > sevenDaysAgo);
-  if (recent.length === 0) return null;
-  return recent[Math.floor(Math.random() * recent.length)];
-}
 
 export default function HomePage({
   trending,
@@ -41,12 +32,14 @@ export default function HomePage({
   const hero = trending[0];
 
   const [similarItems, setSimilarItems] = useState([]);
-  const [similarSource, setSimilarSource] = useState(null);
   const [topRatedItems, setTopRatedItems] = useState([]);
   const [publicDomainItems, setPublicDomainItems] = useState([]);
-  const [genreItems, setGenreItems] = useState({
-    genreAction: [], genreDrama: [], genreComedy: [],
-  });
+  const [movieGenres, setMovieGenres] = useState([]);
+  const [tvGenres, setTvGenres] = useState([]);
+  const [selectedMovieGenreId, setSelectedMovieGenreId] = useState(null);
+  const [selectedTvGenreId, setSelectedTvGenreId] = useState(null);
+  const [genreMoviesItems, setGenreMoviesItems] = useState([]);
+  const [genreSeriesItems, setGenreSeriesItems] = useState([]);
 
   const [layout] = useState(() => loadHomeLayout());
   const { order: rowOrder, visible: rowVisible } = layout;
@@ -76,39 +69,68 @@ export default function HomePage({
     return out;
   }, [ratingsMap, ageLimitSetting]);
 
-  // ── Recently Added (last 10 items added to watchlist) ────────────────────
-  const recentlyAdded = useMemo(() =>
-    [...savedList]
-      .filter((i) => i.addedAt)
-      .sort((a, b) => b.addedAt - a.addedAt)
-      .slice(0, 10),
-    [savedList],
-  );
+  // ── New Releases (TMDB now_playing + on_the_air) ─────────────────────────
+  const [newReleasesItems, setNewReleasesItems] = useState([]);
+  useEffect(() => {
+    if (!apiKey || offline) return;
+    const ctrl = new AbortController();
+    Promise.all([
+      tmdbFetch("/movie/now_playing?page=1", apiKey, { signal: ctrl.signal }),
+      tmdbFetch("/tv/on_the_air?page=1", apiKey, { signal: ctrl.signal }),
+    ]).then(([m, t]) => {
+      const movies = (m.results || []).slice(0, 10).map((i) => ({ ...i, media_type: "movie" }));
+      const tv = (t.results || []).slice(0, 10).map((i) => ({ ...i, media_type: "tv" }));
+      const merged = [];
+      for (let i = 0; i < Math.max(movies.length, tv.length); i++) {
+        if (movies[i]) merged.push(movies[i]);
+        if (tv[i]) merged.push(tv[i]);
+      }
+      setNewReleasesItems(merged.slice(0, 20));
+    }).catch((e) => { if (e.name !== "AbortError") console.warn(e); });
+    return () => ctrl.abort();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiKey, offline]);
 
   // ── Stable card arrays ────────────────────────────────────────────────────
   const trendingMovieItems = useMemo(
-    () => trending.slice(0, 10).map((i) => ({ ...i, media_type: "movie" })),
+    () => trending.slice(0, 20).map((i) => ({ ...i, media_type: "movie" })),
     [trending],
   );
   const trendingTVItems = useMemo(
-    () => trendingTV.slice(0, 10).map((i) => ({ ...i, media_type: "tv" })),
+    () => trendingTV.slice(0, 20).map((i) => ({ ...i, media_type: "tv" })),
     [trendingTV],
   );
 
-  // ── Fetch: similar ────────────────────────────────────────────────────────
+  // ── Fetch: recommendations (last 3 watched → merged + deduped) ───────────
   useEffect(() => {
     if (!apiKey || offline || !history || history.length === 0) return;
-    const source = getRecentHistoryItem(history);
-    if (!source) return;
-    setSimilarSource(source);
-    const type = source.media_type === "tv" ? "tv" : "movie";
-    const tryFetch = (ep) =>
-      tmdbFetch(`/${type}/${source.id}/${ep}`, apiKey).then((d) =>
-        (d.results || []).slice(0, 10).map((item) => ({ ...item, media_type: type })),
-      );
-    tryFetch("similar")
-      .then((r) => { if (r.length > 0) { setSimilarItems(r); return; } return tryFetch("recommendations").then(setSimilarItems); })
-      .catch(() => tryFetch("recommendations").then(setSimilarItems).catch(() => {}));
+    const sources = history.slice(0, 3);
+    let cancelled = false;
+    Promise.all(
+      sources.map((src) => {
+        const type = src.media_type === "tv" ? "tv" : "movie";
+        return tmdbFetch(`/${type}/${src.id}/recommendations`, apiKey)
+          .then((d) => (d.results || []).map((i) => ({ ...i, media_type: type })))
+          .catch(() => []);
+      }),
+    ).then((arrays) => {
+      if (cancelled) return;
+      const watchedIds = new Set(history.map((h) => `${h.media_type}_${h.id}`));
+      const seen = new Set();
+      const merged = [];
+      for (const arr of arrays) {
+        for (const item of arr) {
+          const key = `${item.media_type}_${item.id}`;
+          if (!seen.has(key) && !watchedIds.has(key)) {
+            seen.add(key);
+            merged.push(item);
+          }
+        }
+      }
+      merged.sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+      setSimilarItems(merged.slice(0, 20));
+    });
+    return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiKey, offline, history?.length]);
 
@@ -120,8 +142,8 @@ export default function HomePage({
       tmdbFetch("/movie/top_rated?page=1", apiKey, { signal: ctrl.signal }),
       tmdbFetch("/tv/top_rated?page=1", apiKey, { signal: ctrl.signal }),
     ]).then(([m, t]) => {
-      const movies = (m.results || []).slice(0, 8).map((i) => ({ ...i, media_type: "movie" }));
-      const tv = (t.results || []).slice(0, 8).map((i) => ({ ...i, media_type: "tv" }));
+      const movies = (m.results || []).slice(0, 10).map((i) => ({ ...i, media_type: "movie" }));
+      const tv = (t.results || []).slice(0, 10).map((i) => ({ ...i, media_type: "tv" }));
       const merged = [];
       for (let i = 0; i < Math.max(movies.length, tv.length); i++) {
         if (movies[i]) merged.push(movies[i]);
@@ -139,26 +161,141 @@ export default function HomePage({
     fetchPublicDomainMovies().then(setPublicDomainItems).catch(() => {});
   }, [offline]);
 
-  // ── Fetch: genre rows ─────────────────────────────────────────────────────
+  // ── Fetch: TMDB genre lists (movie + TV) ──────────────────────────────────
   useEffect(() => {
     if (!apiKey || offline) return;
     const ctrl = new AbortController();
-    Promise.all(
-      Object.entries(GENRE_IDS).map(([rowId, genreId]) =>
-        tmdbFetch(`/discover/movie?with_genres=${genreId}&sort_by=popularity.desc&page=1`, apiKey, { signal: ctrl.signal })
-          .then((d) => [rowId, (d.results || []).slice(0, 12).map((i) => ({ ...i, media_type: "movie" }))])
-          .catch(() => [rowId, []]),
-      ),
-    ).then((results) => {
-      const next = {};
-      results.forEach(([id, items]) => { next[id] = items; });
-      setGenreItems(next);
-    });
+    Promise.all([
+      tmdbFetch("/genre/movie/list", apiKey, { signal: ctrl.signal }),
+      tmdbFetch("/genre/tv/list", apiKey, { signal: ctrl.signal }),
+    ]).then(([m, t]) => {
+      const mg = (m.genres || []).slice().sort((a, b) => a.name.localeCompare(b.name));
+      const tg = (t.genres || []).slice().sort((a, b) => a.name.localeCompare(b.name));
+      setMovieGenres(mg);
+      setTvGenres(tg);
+      setSelectedMovieGenreId((prev) => prev ?? (mg[0]?.id ?? null));
+      setSelectedTvGenreId((prev) => prev ?? (tg[0]?.id ?? null));
+    }).catch(() => {});
     return () => ctrl.abort();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiKey, offline]);
 
+  // ── Fetch: genre movies (refetch on genre change) ─────────────────────────
+  useEffect(() => {
+    if (!apiKey || offline || !selectedMovieGenreId) return;
+    let cancelled = false;
+    tmdbFetch(
+      `/discover/movie?with_genres=${selectedMovieGenreId}&sort_by=vote_average.desc&vote_count.gte=100&page=1`,
+      apiKey,
+    ).then((d) => {
+      if (!cancelled) setGenreMoviesItems((d.results || []).slice(0, 20).map((i) => ({ ...i, media_type: "movie" })));
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiKey, offline, selectedMovieGenreId]);
+
+  // ── Fetch: genre series (refetch on genre change) ─────────────────────────
+  useEffect(() => {
+    if (!apiKey || offline || !selectedTvGenreId) return;
+    let cancelled = false;
+    tmdbFetch(
+      `/discover/tv?with_genres=${selectedTvGenreId}&sort_by=vote_average.desc&vote_count.gte=100&page=1`,
+      apiKey,
+    ).then((d) => {
+      if (!cancelled) setGenreSeriesItems((d.results || []).slice(0, 20).map((i) => ({ ...i, media_type: "tv" })));
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiKey, offline, selectedTvGenreId]);
+
+  // ── Cross-row deduplication (TMDB rows only, in display order) ───────────
+  const deduplicatedItems = useMemo(() => {
+    const seenIds = new Set();
+    const dedup = (items) => {
+      if (!items || items.length === 0) return [];
+      const out = items.filter((i) => {
+        const k = `${i.media_type || "movie"}_${i.id}`;
+        return !seenIds.has(k);
+      });
+      out.forEach((i) => seenIds.add(`${i.media_type || "movie"}_${i.id}`));
+      return out;
+    };
+    const result = {};
+    for (const id of rowOrder) {
+      if (id === "recentlyAdded") result.recentlyAdded = dedup(newReleasesItems);
+      else if (id === "similar") result.similar = dedup(similarItems);
+      else if (id === "trendingMovies") result.trendingMovies = dedup(trendingMovieItems);
+      else if (id === "trendingTV") result.trendingTV = dedup(trendingTVItems);
+      else if (id === "topRated") result.topRated = dedup(topRatedItems);
+      else if (id === "genreMovies") result.genreMovies = dedup(genreMoviesItems);
+      else if (id === "genreSeries") result.genreSeries = dedup(genreSeriesItems);
+    }
+    return result;
+  }, [rowOrder, newReleasesItems, similarItems, trendingMovieItems, trendingTVItems, topRatedItems, genreMoviesItems, genreSeriesItems]);
+
   // ── Row renderers ─────────────────────────────────────────────────────────
+  const renderGenreRow = (key, title, items, genres, selectedId, onSelectGenre) => {
+    if (!genres || genres.length === 0) return null;
+    const idx = genres.findIndex((g) => g.id === selectedId);
+    const currentName = genres[idx]?.name || "";
+    const cyclePrev = (e) => { e.stopPropagation(); onSelectGenre(genres[(idx - 1 + genres.length) % genres.length].id); };
+    const cycleNext = (e) => { e.stopPropagation(); onSelectGenre(genres[(idx + 1) % genres.length].id); };
+    return (
+      <div key={key} className="section">
+        <div className="section-title" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <span>{title}</span>
+          <button
+            tabIndex={0}
+            data-focusable
+            onKeyDown={(e) => {
+              if (e.key === "ArrowLeft") { e.preventDefault(); cyclePrev(e); }
+              else if (e.key === "ArrowRight") { e.preventDefault(); cycleNext(e); }
+            }}
+            style={{
+              background: "var(--surface)",
+              color: "var(--text)",
+              border: "1px solid var(--border)",
+              borderRadius: 6,
+              padding: "4px 14px",
+              fontSize: 13,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+            }}
+          >
+            <span style={{ opacity: 0.5 }}>‹</span>
+            <span style={{ minWidth: "8rem", textAlign: "center" }}>{currentName}</span>
+            <span style={{ opacity: 0.5 }}>›</span>
+          </button>
+        </div>
+        {items && items.length > 0 ? (
+          <div className="cards-row">
+            {items.map((item) => {
+              const type = item.media_type === "tv" ? "tv" : "movie";
+              const rd = enrichedRatingsMap[`${type}_${item.id}`] || {};
+              return (
+                <MediaCard
+                  key={`${item.media_type}_${item.id}`}
+                  item={item}
+                  onClick={() => onSelect(item)}
+                  progress={0}
+                  watched={watched}
+                  onMarkWatched={onMarkWatched}
+                  onMarkUnwatched={onMarkUnwatched}
+                  ageRating={rd.cert}
+                  restricted={rd.restricted}
+                />
+              );
+            })}
+          </div>
+        ) : (
+          <div style={{ color: "var(--text3)", fontSize: 13, padding: "16px 0" }}>Loading…</div>
+        )}
+      </div>
+    );
+  };
+
   const renderCardRow = (key, title, items, opts = {}) => {
     if (!items || items.length === 0) return null;
     return (
@@ -316,6 +453,7 @@ export default function HomePage({
                       onMarkUnwatched={onMarkUnwatched}
                       ageRating={r.cert}
                       restricted={restr}
+                      isUpNext={!!item._isSeriesNext}
                     />
                   );
                 })}
@@ -331,7 +469,7 @@ export default function HomePage({
 
         // Recently Added
         if (id === "recentlyAdded") {
-          return renderCardRow("recentlyAdded", "Recently Added", recentlyAdded);
+          return renderCardRow("recentlyAdded", "Recently Added", deduplicatedItems.recentlyAdded || []);
         }
 
         // Shared Library (cross-profile)
@@ -379,31 +517,30 @@ export default function HomePage({
           return renderCardRow("jsonCatalogue", "My Catalogue", jsonCatalogueItems, { badge: "📂" });
         }
 
-        // Similar to…
+        // You Would Love This
         if (id === "similar") {
-          if (!similarSource || similarItems.length === 0) return null;
-          return renderCarouselOrList("similar", "Similar to", similarSource.title || similarSource.name, similarItems);
+          if ((deduplicatedItems.similar || []).length === 0) return null;
+          return renderCarouselOrList("similar", "You Would Love This", null, deduplicatedItems.similar);
         }
 
         // Trending Movies
         if (id === "trendingMovies") {
-          return renderCarouselOrList("trendingMovies", "Trending Movies", null, trendingMovieItems);
+          return renderCarouselOrList("trendingMovies", "Trending Movies", null, deduplicatedItems.trendingMovies || []);
         }
 
         // Trending Series
         if (id === "trendingTV") {
-          return renderCarouselOrList("trendingTV", "Trending Series", null, trendingTVItems);
+          return renderCarouselOrList("trendingTV", "Trending Series", null, deduplicatedItems.trendingTV || []);
         }
 
         // Top Rated
         if (id === "topRated") {
-          return renderCarouselOrList("topRated", "Top Rated", null, topRatedItems);
+          return renderCarouselOrList("topRated", "Top Rated", null, deduplicatedItems.topRated || []);
         }
 
         // Genre rows
-        if (id === "genreAction") return renderCardRow("genreAction", "Action", genreItems.genreAction);
-        if (id === "genreDrama")  return renderCardRow("genreDrama",  "Drama",  genreItems.genreDrama);
-        if (id === "genreComedy") return renderCardRow("genreComedy", "Comedy", genreItems.genreComedy);
+        if (id === "genreMovies") return renderGenreRow("genreMovies", "Movies", deduplicatedItems.genreMovies || [], movieGenres, selectedMovieGenreId, setSelectedMovieGenreId);
+        if (id === "genreSeries") return renderGenreRow("genreSeries", "Series", deduplicatedItems.genreSeries || [], tvGenres, selectedTvGenreId, setSelectedTvGenreId);
 
         return null;
       })}

@@ -1,9 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   storage,
   STORAGE_KEYS,
   secureStorage,
-  isElectron,
   clearAppCaches,
   getCurrentPStore,
 } from "../utils/storage";
@@ -17,10 +16,9 @@ const checkForUpdates = async () => ({ hasUpdate: false });
 import {
   HOME_ROWS,
   loadHomeLayout,
-  loadHomeViewMode,
-  saveHomeViewMode,
 } from "../utils/homeLayout";
 import { formatBytes } from "../utils/storage";
+import ApiKeyQRModal from "../components/ApiKeyQRModal";
 
 // ── Custom Select ─────────────────────────────────────────────────────────────
 function SettingsSelect({ value, onChange, options, style }) {
@@ -37,6 +35,17 @@ function SettingsSelect({ value, onChange, options, style }) {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  useEffect(() => {
+    if (!open) return;
+    const el = ref.current;
+    if (!el) return;
+    const handler = (e) => {
+      if (!el.contains(e.relatedTarget)) setOpen(false);
+    };
+    el.addEventListener("focusout", handler);
+    return () => el.removeEventListener("focusout", handler);
+  }, [open]);
+
   return (
     <div
       ref={ref}
@@ -46,6 +55,13 @@ function SettingsSelect({ value, onChange, options, style }) {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            e.stopPropagation();
+            setOpen(false);
+          }
+        }}
         style={{
           display: "flex",
           alignItems: "center",
@@ -116,9 +132,24 @@ function SettingsSelect({ value, onChange, options, style }) {
             return (
               <div
                 key={o.value}
+                tabIndex={0}
                 onMouseDown={() => {
                   onChange(o.value);
                   setOpen(false);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onChange(o.value);
+                    setOpen(false);
+                    ref.current?.querySelector("button")?.focus();
+                  } else if (e.key === "Escape") {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setOpen(false);
+                    ref.current?.querySelector("button")?.focus();
+                  }
                 }}
                 style={{
                   padding: "8px 12px",
@@ -656,7 +687,6 @@ function HomeLayoutSection() {
     const { visible: v } = loadHomeLayout();
     return v;
   });
-  const [viewMode, setViewMode] = useState(() => loadHomeViewMode());
   const [saved, setSaved] = useState(false);
   const dragItem = useRef(null);
   const dragOver = useRef(null);
@@ -683,7 +713,6 @@ function HomeLayoutSection() {
   const handleSave = () => {
     storage.set(STORAGE_KEYS.HOME_ROW_ORDER, order);
     storage.set(STORAGE_KEYS.HOME_ROW_VISIBLE, visible);
-    saveHomeViewMode(viewMode);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -705,62 +734,6 @@ function HomeLayoutSection() {
         hero banner is always shown at the top.
       </div>
 
-      {/* ── View mode selector ── */}
-      <div style={{ marginBottom: 20 }}>
-        <div
-          style={{
-            fontSize: 13,
-            fontWeight: 600,
-            color: "var(--text2)",
-            marginBottom: 8,
-            textTransform: "uppercase",
-            letterSpacing: "0.05em",
-          }}
-        >
-          Row display style
-        </div>
-        <div style={{ display: "flex", gap: 10 }}>
-          {[
-            {
-              value: "carousel",
-              label: "Carousel",
-              desc: "Scrollable spotlight with featured poster",
-            },
-            {
-              value: "list",
-              label: "⊞ Grid",
-              desc: "Compact grid of all items",
-            },
-          ].map(({ value, label, desc }) => (
-            <button
-              key={value}
-              onClick={() => setViewMode(value)}
-              style={{
-                flex: 1,
-                maxWidth: 220,
-                padding: "10px 14px",
-                borderRadius: 8,
-                border: `2px solid ${viewMode === value ? "var(--red)" : "var(--border)"}`,
-                background:
-                  viewMode === value
-                    ? "color-mix(in srgb, var(--red) 12%, var(--surface))"
-                    : "var(--surface)",
-                color: viewMode === value ? "var(--text)" : "var(--text2)",
-                cursor: "pointer",
-                textAlign: "left",
-                transition: "border-color 0.15s, background 0.15s",
-              }}
-            >
-              <div style={{ fontWeight: 600, fontSize: 14 }}>{label}</div>
-              <div
-                style={{ fontSize: 12, color: "var(--text3)", marginTop: 2 }}
-              >
-                {desc}
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
 
       <div
         style={{
@@ -841,198 +814,6 @@ function HomeLayoutSection() {
           <span style={{ fontSize: 13, color: "#48c774" }}>✓ Saved</span>
         )}
       </div>
-    </div>
-  );
-}
-
-// ── Scheduled Backup Section ──────────────────────────────────────────────────
-const FREQUENCY_OPTIONS = [
-  { value: "startup", label: "On App Start" },
-  { value: "daily", label: "Daily" },
-  { value: "weekly", label: "Weekly" },
-  { value: "monthly", label: "Monthly" },
-];
-
-function ScheduledBackupSection() {
-  const [enabled, setEnabled] = useState(false);
-  const [backupPath, setBackupPath] = useState("");
-  const [keepCount, setKeepCount] = useState(5);
-  const [frequency, setFrequency] = useState("startup");
-  const [saved, setSaved] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!isElectron) {
-      setLoading(false);
-      return;
-    }
-    null.getScheduledBackupSettings().then((s) => {
-      if (s) {
-        setEnabled(!!s.enabled);
-        setBackupPath(s.path || "");
-        setKeepCount(s.keepCount ?? 5);
-        setFrequency(s.frequency || "startup");
-      }
-      setLoading(false);
-    });
-  }, []);
-
-  const pickFolder = async () => {
-    if (!isElectron) return;
-    const folder = await null.pickFolder();
-    if (folder) setBackupPath(folder);
-  };
-
-  const handleSave = async () => {
-    if (!isElectron) return;
-    const settings = {
-      enabled,
-      path: backupPath,
-      keepCount: Math.max(1, Math.min(99, Number(keepCount) || 5)),
-      frequency,
-      lastRun: null,
-    };
-    // preserve lastRun from existing settings
-    const existing = await null.getScheduledBackupSettings();
-    if (existing?.lastRun) settings.lastRun = existing.lastRun;
-    await null.setScheduledBackupSettings(settings);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  };
-
-  if (!isElectron || loading) return null;
-
-  return (
-    <div
-      style={{
-        marginTop: 28,
-        padding: "20px 22px",
-        background: "var(--surface2)",
-        border: "1px solid var(--border)",
-        borderRadius: 10,
-      }}
-    >
-      {/* Header row with toggle */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          marginBottom: enabled ? 20 : 0,
-        }}
-      >
-        <Toggle value={enabled} onChange={setEnabled} />
-        <div>
-          <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>
-            Scheduled Backups
-          </div>
-          <div style={{ fontSize: 12, color: "var(--text3)", marginTop: 2 }}>
-            Automatically save a backup file on a schedule
-          </div>
-        </div>
-      </div>
-
-      {enabled && (
-        <>
-          {/* Backup path */}
-          <div style={{ marginBottom: 14 }}>
-            <div
-              style={{
-                fontSize: 12,
-                fontWeight: 600,
-                color: "var(--text2)",
-                marginBottom: 6,
-              }}
-            >
-              Backup Folder
-            </div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <input
-                className="apikey-input"
-                style={{ flex: 1, marginBottom: 0 }}
-                placeholder="/home/you/Backups"
-                value={backupPath}
-                onChange={(e) => setBackupPath(e.target.value)}
-              />
-              <button
-                className="btn btn-ghost"
-                style={{ padding: "7px 14px", fontSize: 13 }}
-                onClick={pickFolder}
-              >
-                Browse…
-              </button>
-            </div>
-          </div>
-
-          {/* Frequency + Keep count row */}
-          <div
-            style={{
-              display: "flex",
-              gap: 16,
-              flexWrap: "wrap",
-              marginBottom: 16,
-            }}
-          >
-            <div style={{ flex: 1, minWidth: 160 }}>
-              <div
-                style={{
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: "var(--text2)",
-                  marginBottom: 6,
-                }}
-              >
-                Frequency
-              </div>
-              <SettingsSelect
-                value={frequency}
-                onChange={(v) => setFrequency(v)}
-                options={FREQUENCY_OPTIONS}
-                style={{ width: "100%" }}
-              />
-            </div>
-
-            <div style={{ flex: 1, minWidth: 120 }}>
-              <div
-                style={{
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: "var(--text2)",
-                  marginBottom: 6,
-                }}
-              >
-                Keep Last N Backups
-              </div>
-              <input
-                type="number"
-                min={1}
-                max={99}
-                className="apikey-input"
-                style={{ width: "100%", marginBottom: 0 }}
-                value={keepCount}
-                onChange={(e) => setKeepCount(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <button className="btn btn-primary" onClick={handleSave}>
-              Save
-            </button>
-            {saved && (
-              <span style={{ fontSize: 13, color: "#48c774" }}>✓ Saved</span>
-            )}
-          </div>
-        </>
-      )}
-
-      {!enabled && (
-        <div
-          style={{ display: "flex", justifyContent: "flex-end", marginTop: 0 }}
-        >
-          {/* empty, toggle handles everything */}
-        </div>
-      )}
     </div>
   );
 }
@@ -1149,7 +930,6 @@ function BackupRestoreSection({ onRestored }) {
           </span>
         )}
       </div>
-      <ScheduledBackupSection />
     </div>
   );
 }
@@ -1374,11 +1154,11 @@ function LanSyncSection() {
 const CONFIG_KEYS_GLOBAL = [
   STORAGE_KEYS.ACCENT_COLOR, STORAGE_KEYS.FONT_SIZE, STORAGE_KEYS.COMPACT_MODE,
   STORAGE_KEYS.REDUCE_ANIMATIONS, STORAGE_KEYS.HOME_ROW_ORDER, STORAGE_KEYS.HOME_ROW_VISIBLE,
-  STORAGE_KEYS.HOME_VIEW_MODE, STORAGE_KEYS.INVIDIOUS_BASE,
+  STORAGE_KEYS.INVIDIOUS_BASE,
 ];
 const CONFIG_KEYS_PROFILE = [
   STORAGE_KEYS.SUBTITLE_ENABLED, STORAGE_KEYS.SUBTITLE_LANG, STORAGE_KEYS.SUBTITLE_SIZE,
-  STORAGE_KEYS.SUBTITLE_POSITION, STORAGE_KEYS.INTRO_SKIP_MODE, STORAGE_KEYS.WATCHED_THRESHOLD,
+  STORAGE_KEYS.SUBTITLE_POSITION, STORAGE_KEYS.INTRO_SKIP_MODE, STORAGE_KEYS.INTRO_SKIP_DURATION, STORAGE_KEYS.WATCHED_THRESHOLD,
   STORAGE_KEYS.LIBRARY_SORT, STORAGE_KEYS.HISTORY_ENABLED, STORAGE_KEYS.AGE_LIMIT,
   STORAGE_KEYS.RATING_COUNTRY, STORAGE_KEYS.START_PAGE,
 ];
@@ -1786,6 +1566,7 @@ function SubtitleSettingsSection() {
   );
   const [subdlApiKey, setSubdlApiKey] = useState("");
   const [showSubdlKey, setShowSubdlKey] = useState(false);
+  const [apiKeyQRModal, setApiKeyQRModal] = useState(null); // { type, label } | null
   const [wyzieApiKey, setWyzieApiKey] = useState("");
   const [showWyzieKey, setShowWyzieKey] = useState(false);
   const [wyzieCopied, setWyzieCopied] = useState(false);
@@ -2003,6 +1784,13 @@ function SubtitleSettingsSection() {
               >
                 {showWyzieKey ? "Hide" : "Show"}
               </button>
+              <button
+                className="btn btn-ghost"
+                style={{ padding: "6px 12px", fontSize: 12 }}
+                onClick={() => setApiKeyQRModal({ type: "wyzie", label: "Wyzie API Key" })}
+              >
+                📱 Set via QR
+              </button>
               {hasWyzieKey && (
                 <button
                   className="btn btn-ghost"
@@ -2124,6 +1912,13 @@ function SubtitleSettingsSection() {
               >
                 {showSubdlKey ? "Hide" : "Show"}
               </button>
+              <button
+                className="btn btn-ghost"
+                style={{ padding: "6px 12px", fontSize: 12 }}
+                onClick={() => setApiKeyQRModal({ type: "subdl", label: "SubDL API Key" })}
+              >
+                📱 Set via QR
+              </button>
               {subdlApiKey.trim() && (
                 <button
                   className="btn btn-ghost"
@@ -2153,6 +1948,19 @@ function SubtitleSettingsSection() {
           <span style={{ fontSize: 13, color: "#4caf50" }}>✓ Saved</span>
         )}
       </div>
+
+      {apiKeyQRModal && (
+        <ApiKeyQRModal
+          setupType={apiKeyQRModal.type}
+          label={apiKeyQRModal.label}
+          onSave={(key) => {
+            if (apiKeyQRModal.type === "wyzie") setWyzieApiKey(key);
+            if (apiKeyQRModal.type === "subdl") setSubdlApiKey(key);
+            setApiKeyQRModal(null);
+          }}
+          onClose={() => setApiKeyQRModal(null)}
+        />
+      )}
     </div>
   );
 }
@@ -2201,102 +2009,6 @@ function SubtitleDisplaySection() {
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 16 }}>
         <button className="btn btn-primary" onClick={handleSave}>Save</button>
         {saved && <span style={{ fontSize: 13, color: "#4caf50" }}>✓ Saved</span>}
-      </div>
-    </div>
-  );
-}
-
-// ── Notifications Section ─────────────────────────────────────────────────────
-function NotificationsSection() {
-  const [notifyDownload, setNotifyDownload] = useState(
-    () => storage.get(STORAGE_KEYS.NOTIFY_DOWNLOAD_COMPLETE) !== false,
-  );
-  const [notifyEpisode, setNotifyEpisode] = useState(() => {
-    const stored = storage.get(STORAGE_KEYS.NOTIFY_NEW_EPISODE);
-    return stored === null || stored === undefined ? true : !!stored;
-  });
-  const [saved, setSaved] = useState(false);
-
-  const saveSettings = () => {
-    storage.set(STORAGE_KEYS.NOTIFY_DOWNLOAD_COMPLETE, notifyDownload);
-    storage.set(STORAGE_KEYS.NOTIFY_NEW_EPISODE, notifyEpisode);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  };
-
-  const ToggleRow = ({ label, description, value, onChange }) => (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "flex-start",
-        gap: 14,
-        padding: "16px 0",
-        borderBottom: "1px solid var(--border)",
-      }}
-    >
-      <Toggle value={value} onChange={onChange} />
-      <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 14, fontWeight: 500, color: "var(--text)" }}>
-          {label}
-        </div>
-        <div
-          style={{
-            fontSize: 12,
-            color: "var(--text3)",
-            marginTop: 3,
-            lineHeight: 1.5,
-          }}
-        >
-          {description}
-        </div>
-      </div>
-    </div>
-  );
-
-  return (
-    <div style={{ marginBottom: 40 }}>
-      <div className="settings-section-title">Desktop Notifications</div>
-      <div
-        style={{
-          fontSize: 13,
-          color: "var(--text3)",
-          marginBottom: 16,
-          lineHeight: 1.6,
-        }}
-      >
-        Control which events trigger a desktop notification.
-      </div>
-
-      <div
-        style={{
-          background: "var(--surface)",
-          border: "1px solid var(--border)",
-          borderRadius: 10,
-          padding: "0 16px",
-          marginBottom: 20,
-        }}
-      >
-        <ToggleRow
-          label="Notify when a download completes"
-          description="Shows a desktop notification when an item finishes downloading."
-          value={notifyDownload}
-          onChange={setNotifyDownload}
-        />
-        <ToggleRow
-          label="Notify about new episodes on startup"
-          description="On startup, checks every TV series you have saved for newly released episodes and notifies you if any aired since the last check."
-          value={notifyEpisode}
-          onChange={setNotifyEpisode}
-        />
-      </div>
-
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <button className="btn btn-primary" onClick={saveSettings}>
-          Save
-        </button>
-        {saved && (
-          <span style={{ fontSize: 13, color: "#48c774" }}>✓ Saved</span>
-        )}
       </div>
     </div>
   );
@@ -2515,6 +2227,26 @@ const SECTION_NAV = [
     ],
   },
 ];
+
+const TV_TABS = [
+  { id: "playback",  label: "Playback",  icon: "▶",  sections: ["updates", "content", "playback"] },
+  { id: "subtitles", label: "Subtitles", icon: "CC", sections: ["subtitles"] },
+  { id: "interface", label: "Interface", icon: "✦",  sections: ["interface"] },
+  { id: "library",   label: "Library",   icon: "📚", sections: ["library"] },
+  { id: "data",      label: "Data",      icon: "🗄", sections: ["backup", "storage"] },
+];
+
+const TV_TAB_OF = {
+  updates: "playback", content: "playback", playback: "playback",
+  subtitles: "subtitles",
+  interface: "interface",
+  library: "library",
+  backup: "data", storage: "data",
+};
+
+function sectionToTab(sectionId) {
+  return TV_TAB_OF[sectionId] ?? "playback";
+}
 
 function SettingsTopBar({ sectionRefs, contentRef }) {
   const [searchOpen, setSearchOpen] = useState(false);
@@ -3132,28 +2864,30 @@ export default function SettingsPage({
   onChangeApiKey,
   initialSection,
 }) {
-  const [downloadPath, setDownloadPath] = useState(
-    () => storage.get(STORAGE_KEYS.DOWNLOAD_PATH) || "",
+  const [activeTab, setActiveTab] = useState(
+    () => initialSection ? sectionToTab(initialSection) : "playback",
   );
+  const navZoneRef = useRef("sidebar"); // "sidebar" | "panel" — ref avoids effect re-registration
+  const sidebarRef = useRef(null);
   const [watchedThreshold, setWatchedThreshold] = useState(
     () => getCurrentPStore().get(STORAGE_KEYS.WATCHED_THRESHOLD) ?? 20,
   );
   const [introSkipMode, setIntroSkipMode] = useState(
     () => getCurrentPStore().get(STORAGE_KEYS.INTRO_SKIP_MODE) || "off",
   );
+  const [introSkipDuration, setIntroSkipDuration] = useState(
+    () => getCurrentPStore().get(STORAGE_KEYS.INTRO_SKIP_DURATION) ?? 90,
+  );
   const [saved, setSaved] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetHovered, setResetHovered] = useState(false);
   const [showProgressConfirm, setShowProgressConfirm] = useState(false);
-  const [showDeleteDlConfirm, setShowDeleteDlConfirm] = useState(false);
 
   // ── Section refs for navigation ────────────────────────────────────────────
   const secUpdates = useRef(null);
   const secContent = useRef(null);
   const secPlayback = useRef(null);
   const secSubtitles = useRef(null);
-  const secDownloads = useRef(null);
-  const secNotifications = useRef(null);
   const secInterface = useRef(null);
   const secLibrary = useRef(null);
   const secBackup = useRef(null);
@@ -3164,8 +2898,6 @@ export default function SettingsPage({
     content: secContent,
     playback: secPlayback,
     subtitles: secSubtitles,
-    downloads: secDownloads,
-    notifications: secNotifications,
     interface: secInterface,
     library: secLibrary,
     backup: secBackup,
@@ -3175,17 +2907,87 @@ export default function SettingsPage({
   // Ref for find-in-page search scope
   const contentRef = useRef(null);
 
-  // Scroll to initial section if provided (e.g. when navigating from a modal)
-  useEffect(() => {
-    if (!initialSection) return;
-    const el = sectionRefs[initialSection]?.current;
-    if (!el) return;
-    // Small delay so layout is complete before scrolling
-    const t = setTimeout(() => {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 120);
-    return () => clearTimeout(t);
+  // initialSection handled via activeTab state initialiser above — no scroll needed
+
+  // ── Settings D-pad navigation ──────────────────────────────────────────────
+  const getPanelFocusables = useCallback(() => {
+    if (!contentRef.current) return [];
+    return Array.from(
+      contentRef.current.querySelectorAll(
+        'button:not([disabled]), input:not([disabled]), select:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+      ),
+    ).filter((el) => el.offsetParent !== null);
   }, []);
+
+  useEffect(() => {
+    // Focus first tab on mount so D-pad works immediately
+    sidebarRef.current?.querySelector("button.tv-settings-tab")?.focus();
+  }, []);
+
+  useEffect(() => {
+    const handler = (e) => {
+      const zone = navZoneRef.current;
+
+      if (zone === "sidebar") {
+        const tabs = sidebarRef.current
+          ? Array.from(sidebarRef.current.querySelectorAll("button.tv-settings-tab"))
+          : [];
+        if (!tabs.length) return;
+        const ci = tabs.indexOf(document.activeElement);
+
+        if (e.key === "ArrowDown") {
+          e.preventDefault(); e.stopPropagation();
+          const nextIdx = ci < 0 ? 0 : ci + 1 < tabs.length ? ci + 1 : 0;
+          tabs[nextIdx].focus();
+          setActiveTab(TV_TABS[nextIdx].id);
+        } else if (e.key === "ArrowUp") {
+          e.preventDefault(); e.stopPropagation();
+          const prevIdx = ci <= 0 ? tabs.length - 1 : ci - 1;
+          tabs[prevIdx].focus();
+          setActiveTab(TV_TABS[prevIdx].id);
+        } else if (e.key === "ArrowRight") {
+          e.preventDefault(); e.stopPropagation();
+          navZoneRef.current = "panel";
+          const focusables = getPanelFocusables();
+          if (focusables[0]) {
+            focusables[0].focus();
+          }
+        } else if (e.key === "ArrowLeft") {
+          e.preventDefault(); e.stopPropagation();
+          // already in sidebar — absorb to prevent global nav from moving elsewhere
+        }
+      } else {
+        // panel zone
+        const focusables = getPanelFocusables();
+        const ci = focusables.indexOf(document.activeElement);
+
+        if (e.key === "ArrowDown") {
+          e.preventDefault(); e.stopPropagation();
+          const next = focusables[ci + 1];
+          if (next) { next.focus(); }
+        } else if (e.key === "ArrowUp") {
+          e.preventDefault(); e.stopPropagation();
+          const prev = focusables[ci - 1];
+          if (prev) { prev.focus(); }
+        } else if (e.key === "ArrowLeft") {
+          e.preventDefault(); e.stopPropagation();
+          navZoneRef.current = "sidebar";
+          sidebarRef.current?.querySelector(".tv-settings-tab--active")?.focus();
+        } else if (e.key === "ArrowRight") {
+          e.stopPropagation(); // absorb — don't let global nav jump sideways
+        }
+      }
+    };
+
+    // Capture phase: fires before tvNav.js bubble handler
+    window.addEventListener("keydown", handler, true);
+    return () => window.removeEventListener("keydown", handler, true);
+  }, [getPanelFocusables]);
+
+  // Scroll panel to top when tab changes so content always starts at position 0
+  useEffect(() => {
+    contentRef.current?.scrollTo({ top: 0, behavior: "instant" });
+  }, [activeTab]);
 
   // Age Rating
   const [ratingCountry, setRatingCountry] = useState(
@@ -3257,48 +3059,23 @@ export default function SettingsPage({
   };
 
   // Storage sizes - null = loading, -1 = unavailable, ≥0 = real value
-  const [sizes, setSizes] = useState({ cache: null, downloads: null });
+  const [sizes, setSizes] = useState({ cache: null });
 
   useEffect(() => {
-    if (typeof window === "undefined" || !null) {
-      setSizes({ cache: -1, downloads: -1 });
-      return;
-    }
-    (async () => {
-      try {
-        const [cacheRes, downloadsRes] = await Promise.all([
-          null.getCacheSize?.() ?? null,
-          null.getDownloadsSize?.() ?? null,
-        ]);
-        setSizes({
-          cache: cacheRes?.bytes ?? -1,
-          downloads: downloadsRes?.bytes ?? -1,
-        });
-      } catch {
-        setSizes({ cache: -1, downloads: -1 });
-      }
-    })();
+    setSizes({ cache: -1 });
   }, []);
-
-  const pickFolder = async () => {
-    if (!isElectron) return;
-    const folder = await null.pickFolder();
-    if (folder) {
-      setDownloadPath(folder);
-      storage.set(STORAGE_KEYS.DOWNLOAD_PATH, folder);
-      flash();
-    }
-  };
-
-  const handleSavePath = () => {
-    storage.set(STORAGE_KEYS.DOWNLOAD_PATH, downloadPath);
-    flash();
-  };
 
   const handleSaveThreshold = () => {
     const val = Math.max(1, Math.min(300, Number(watchedThreshold) || 20));
     setWatchedThreshold(val);
     getCurrentPStore().set(STORAGE_KEYS.WATCHED_THRESHOLD, val);
+    flash();
+  };
+
+  const handleSaveIntroSkipDuration = () => {
+    const val = Math.max(10, Math.min(600, Number(introSkipDuration) || 90));
+    setIntroSkipDuration(val);
+    getCurrentPStore().set(STORAGE_KEYS.INTRO_SKIP_DURATION, val);
     flash();
   };
 
@@ -3319,29 +3096,12 @@ export default function SettingsPage({
     storage.remove(STORAGE_KEYS.WATCH_PROGRESS);
     storage.remove(STORAGE_KEYS.HISTORY);
     storage.remove(STORAGE_KEYS.WATCHED);
-    if (isElectron) await null.clearWatchData();
     setTimeout(() => window.location.reload(), 800);
     return { msg: "✓ Watch data cleared" };
   };
 
-  const handleDeleteAllDownloads = async () => {
-    let msg = "✓ All downloads removed";
-    setSizes((prev) => ({ ...prev, downloads: 0 }));
-    if (isElectron) {
-      const res = await null.deleteAllDownloads();
-      if (res?.deleted != null) {
-        msg = `✓ Removed ${res.deleted} file${res.deleted !== 1 ? "s" : ""}`;
-        if (res.errors > 0) msg += ` (${res.errors} could not be deleted)`;
-      }
-    } else {
-      storage.remove(STORAGE_KEYS.LOCAL_FILES);
-    }
-    return { msg };
-  };
-
   const handleResetApp = async () => {
     setShowResetConfirm(false);
-    if (isElectron) await null.resetApp();
     storage.clearAll();
     // Clear non-prefixed localStorage caches
     for (const key of Object.keys(localStorage)) {
@@ -3370,24 +3130,6 @@ export default function SettingsPage({
           }}
         />
       )}
-      {showDeleteDlConfirm && (
-        <ConfirmDialog
-          title="DELETE ALL DOWNLOADS?"
-          description="This will permanently delete all video files downloaded through Rush Flix and remove them from the download list."
-          confirmLabel="Yes, Delete All"
-          onConfirm={async () => {
-            setShowDeleteDlConfirm(false);
-            const result = await handleDeleteAllDownloads();
-            window.__deleteDlConfirmResolve?.(result);
-            window.__deleteDlConfirmResolve = null;
-          }}
-          onCancel={() => {
-            setShowDeleteDlConfirm(false);
-            window.__deleteDlConfirmResolve?.({ cancelled: true });
-            window.__deleteDlConfirmResolve = null;
-          }}
-        />
-      )}
       {showResetConfirm && (
         <ResetConfirmDialog
           onConfirm={handleResetApp}
@@ -3395,33 +3137,35 @@ export default function SettingsPage({
         />
       )}
 
-      {/* ── Sticky search & navigation bar ── */}
-      <SettingsTopBar sectionRefs={sectionRefs} contentRef={contentRef} />
 
-      <div
-        ref={contentRef}
-        className="fade-in"
-        style={{ padding: "40px 48px 80px" }}
-      >
-        {/* Page title */}
+      <div className="tv-settings-layout">
         <div
-          style={{
-            fontFamily: "var(--font-display)",
-            fontSize: 48,
-            letterSpacing: 1,
-            marginBottom: 6,
-          }}
+          className="tv-settings-sidebar"
+          ref={sidebarRef}
+          onFocus={() => { navZoneRef.current = "sidebar"; }}
         >
-          SETTINGS
+          <div className="tv-settings-sidebar-title">SETTINGS</div>
+          {TV_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              className={`tv-settings-tab${activeTab === tab.id ? " tv-settings-tab--active" : ""}`}
+              onClick={() => { setActiveTab(tab.id); navZoneRef.current = "sidebar"; }}
+            >
+              <span className="tv-settings-tab-icon">{tab.icon}</span>
+              <span className="tv-settings-tab-label">{tab.label}</span>
+            </button>
+          ))}
         </div>
-        <div style={{ color: "var(--text3)", fontSize: 14, marginBottom: 48 }}>
-          App configuration for Rush Flix
-        </div>
+        <div
+          ref={contentRef}
+          className="tv-settings-panel fade-in"
+          onFocus={() => { navZoneRef.current = "panel"; }}
+        >
 
         {/* ══════════════════════════════════════════════════════════════════ */}
         {/* GROUP: GENERAL                                                     */}
         {/* ══════════════════════════════════════════════════════════════════ */}
-        <div ref={secUpdates} style={{ scrollMarginTop: 80 }}>
+        <div ref={secUpdates} style={{ display: TV_TAB_OF.updates !== activeTab ? "none" : undefined }}>
           <SectionGroupHeader
             title="General"
             subtitle="App version, updates, and API credentials"
@@ -3476,7 +3220,7 @@ export default function SettingsPage({
         {/* ══════════════════════════════════════════════════════════════════ */}
         {/* GROUP: CONTENT                                                     */}
         {/* ══════════════════════════════════════════════════════════════════ */}
-        <div ref={secContent} style={{ scrollMarginTop: 80 }}>
+        <div ref={secContent} style={{ display: TV_TAB_OF.content !== activeTab ? "none" : undefined }}>
           <SectionGroupHeader
             title="Content"
             subtitle="Parental controls and content filtering by age rating"
@@ -3559,7 +3303,7 @@ export default function SettingsPage({
         {/* ══════════════════════════════════════════════════════════════════ */}
         {/* GROUP: PLAYBACK                                                    */}
         {/* ══════════════════════════════════════════════════════════════════ */}
-        <div ref={secPlayback} style={{ scrollMarginTop: 80 }}>
+        <div ref={secPlayback} style={{ display: TV_TAB_OF.playback !== activeTab ? "none" : undefined }}>
           <SectionGroupHeader
             title="Playback"
             subtitle="Trailer source and auto-watched behavior"
@@ -3713,7 +3457,7 @@ export default function SettingsPage({
 
           {/* Intro Skip */}
           <div style={{ marginBottom: 40 }}>
-            <div className="settings-section-title">Anime Intro Skip</div>
+            <div className="settings-section-title">Intro Skip</div>
             <div
               style={{
                 fontSize: 13,
@@ -3722,16 +3466,15 @@ export default function SettingsPage({
                 lineHeight: 1.6,
               }}
             >
-              Uses{" "}
+              Skip opening segments automatically or on demand. Anime uses{" "}
               <span style={{ color: "var(--text)", fontWeight: 600 }}>
                 AniSkip
               </span>{" "}
-              to detect and skip opening/ending segments. Only active for animes
-              and when using{" "}
+              for exact timings. All other content skips the first{" "}
               <span style={{ color: "var(--text)", fontWeight: 600 }}>
-                AllManga
-              </span>{" "}
-              as source.
+                {introSkipDuration}s
+              </span>
+              . Only works with direct video URLs — not iframe embeds.
             </div>
             <div
               style={{
@@ -3760,9 +3503,18 @@ export default function SettingsPage({
               ].map(({ value, label, desc }, i, arr) => (
                 <div
                   key={value}
+                  tabIndex={0}
                   onClick={() => {
                     setIntroSkipMode(value);
                     getCurrentPStore().set(STORAGE_KEYS.INTRO_SKIP_MODE, value);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIntroSkipMode(value);
+                      getCurrentPStore().set(STORAGE_KEYS.INTRO_SKIP_MODE, value);
+                    }
                   }}
                   style={{
                     display: "flex",
@@ -3830,13 +3582,49 @@ export default function SettingsPage({
                 </div>
               ))}
             </div>
+
+            {introSkipMode !== "off" && (
+              <div
+                style={{
+                  marginTop: 20,
+                  display: "flex",
+                  gap: 12,
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                }}
+              >
+                <div style={{ fontSize: 13, color: "var(--text2)", flex: 1 }}>
+                  Manual intro length (non-anime content)
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <input
+                    type="number"
+                    min={10}
+                    max={600}
+                    className="apikey-input"
+                    style={{ width: 90, marginBottom: 0 }}
+                    value={introSkipDuration}
+                    onChange={(e) => setIntroSkipDuration(e.target.value)}
+                  />
+                  <span style={{ fontSize: 14, color: "var(--text2)" }}>
+                    seconds
+                  </span>
+                </div>
+                <button
+                  className="btn btn-primary"
+                  onClick={handleSaveIntroSkipDuration}
+                >
+                  Save
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
         {/* ══════════════════════════════════════════════════════════════════ */}
         {/* GROUP: SUBTITLES                                                   */}
         {/* ══════════════════════════════════════════════════════════════════ */}
-        <div ref={secSubtitles} style={{ scrollMarginTop: 80 }}>
+        <div ref={secSubtitles} style={{ display: TV_TAB_OF.subtitles !== activeTab ? "none" : undefined }}>
           <SectionGroupHeader
             title="Subtitles"
             subtitle="Subtitle download source, preferred language, display size, and position"
@@ -3846,80 +3634,9 @@ export default function SettingsPage({
         </div>
 
         {/* ══════════════════════════════════════════════════════════════════ */}
-        {/* GROUP: DOWNLOADS                                                   */}
-        {/* ══════════════════════════════════════════════════════════════════ */}
-        <div ref={secDownloads} style={{ scrollMarginTop: 80 }}>
-          <SectionGroupHeader
-            title="Downloads"
-            subtitle="Where downloaded video files are saved on disk"
-          />
-
-          <div style={{ marginBottom: 40 }}>
-            <div className="settings-section-title">Download Folder</div>
-            <div
-              style={{
-                fontSize: 13,
-                color: "var(--text3)",
-                marginBottom: 16,
-                lineHeight: 1.6,
-              }}
-            >
-              Downloaded videos will be saved here. Make sure the folder exists
-              and Rush Flix has write access to it.
-            </div>
-            <div
-              style={{
-                display: "flex",
-                gap: 12,
-                alignItems: "center",
-                flexWrap: "wrap",
-              }}
-            >
-              <input
-                className="apikey-input"
-                style={{ flex: 1, minWidth: 260, marginBottom: 0 }}
-                placeholder="/home/you/Movies"
-                value={downloadPath}
-                onChange={(e) => setDownloadPath(e.target.value)}
-              />
-              {isElectron && (
-                <button className="btn btn-secondary" onClick={pickFolder}>
-                  Browse …
-                </button>
-              )}
-              <button className="btn btn-primary" onClick={handleSavePath}>
-                Save
-              </button>
-            </div>
-            {saved && (
-              <div style={{ marginTop: 10, fontSize: 13, color: "#4caf50" }}>
-                ✓ Saved
-              </div>
-            )}
-            {!downloadPath && (
-              <div style={{ marginTop: 10, fontSize: 13, color: "var(--red)" }}>
-                ⚠ No download folder set — videos cannot be downloaded until you
-                set one.
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* ══════════════════════════════════════════════════════════════════ */}
-        {/* GROUP: NOTIFICATIONS                                               */}
-        {/* ══════════════════════════════════════════════════════════════════ */}
-        <div ref={secNotifications} style={{ scrollMarginTop: 80 }}>
-          <SectionGroupHeader
-            title="Notifications"
-            subtitle="Desktop alerts for downloads and new episode releases"
-          />
-          <NotificationsSection />
-        </div>
-
-        {/* ══════════════════════════════════════════════════════════════════ */}
         {/* GROUP: INTERFACE                                                   */}
         {/* ══════════════════════════════════════════════════════════════════ */}
-        <div ref={secInterface} style={{ scrollMarginTop: 80 }}>
+        <div ref={secInterface} style={{ display: TV_TAB_OF.interface !== activeTab ? "none" : undefined }}>
           <SectionGroupHeader
             title="Interface"
             subtitle="Home layout, start page, appearance, and display options"
@@ -3934,7 +3651,7 @@ export default function SettingsPage({
         {/* ══════════════════════════════════════════════════════════════════ */}
         {/* GROUP: LIBRARY                                                     */}
         {/* ══════════════════════════════════════════════════════════════════ */}
-        <div ref={secLibrary} style={{ scrollMarginTop: 80 }}>
+        <div ref={secLibrary} style={{ display: TV_TAB_OF.library !== activeTab ? "none" : undefined }}>
           <SectionGroupHeader
             title="Library"
             subtitle="Watchlist sort order and watch history preferences"
@@ -3945,7 +3662,7 @@ export default function SettingsPage({
         {/* ══════════════════════════════════════════════════════════════════ */}
         {/* GROUP: BACKUP                                                      */}
         {/* ══════════════════════════════════════════════════════════════════ */}
-        <div ref={secBackup} style={{ scrollMarginTop: 80 }}>
+        <div ref={secBackup} style={{ display: TV_TAB_OF.backup !== activeTab ? "none" : undefined }}>
           <SectionGroupHeader
             title="Backup & Restore"
             subtitle="Export your data or restore from a previous backup file"
@@ -3960,10 +3677,10 @@ export default function SettingsPage({
         {/* ══════════════════════════════════════════════════════════════════ */}
         {/* GROUP: STORAGE & DATA                                              */}
         {/* ══════════════════════════════════════════════════════════════════ */}
-        <div ref={secStorage} style={{ scrollMarginTop: 80 }}>
+        <div ref={secStorage} style={{ display: TV_TAB_OF.storage !== activeTab ? "none" : undefined }}>
           <SectionGroupHeader
             title="Storage & Data"
-            subtitle="Clear cache, watch progress, downloads, or reset the entire app"
+            subtitle="Clear cache, watch progress, or reset the entire app"
           />
 
           <div
@@ -3974,21 +3691,6 @@ export default function SettingsPage({
               overflow: "hidden",
             }}
           >
-            {/* Install location */}
-            <div style={{ padding: "22px 24px" }}>
-              <CleanRow
-                title="Install Location"
-                description="Opens the folder where Rush Flix is installed."
-                buttonLabel="Open Folder"
-                onAction={async () => {
-                  const p = await null?.getInstallPath?.();
-                  if (p) null.openPath(p);
-                }}
-              />
-            </div>
-
-            <div style={{ height: 1, background: "var(--border)" }} />
-
             {/* Cache */}
             <div style={{ padding: "22px 24px" }}>
               <CleanRow
@@ -4014,25 +3716,6 @@ export default function SettingsPage({
                     window.__progressConfirmResolve = resolve;
                   })
                 }
-                danger
-              />
-            </div>
-
-            <div style={{ height: 1, background: "var(--border)" }} />
-
-            {/* Delete Downloads */}
-            <div style={{ padding: "22px 24px" }}>
-              <CleanRow
-                title="Delete All Downloads"
-                description="Permanently deletes all video files that were downloaded through Rush Flix and removes them from the download list. Only files downloaded through the app will be deleted, nothing else in your folder is touched."
-                buttonLabel="Delete All"
-                onAction={() =>
-                  new Promise((resolve) => {
-                    setShowDeleteDlConfirm(true);
-                    window.__deleteDlConfirmResolve = resolve;
-                  })
-                }
-                sizeLabel={formatBytes(sizes.downloads)}
                 danger
               />
             </div>
@@ -4120,6 +3803,7 @@ export default function SettingsPage({
             </div>
           </div>
         </div>
+      </div>
       </div>
     </>
   );

@@ -79,6 +79,7 @@ export default function App() {
   const [timestamps, setTimestamps] = useState({});
   const [history, setHistory] = useState([]);
   const [watched, setWatched] = useState({});
+  const [seriesNext, setSeriesNext] = useState({});
 
   // Reload per-profile data when profile switches
   useEffect(() => {
@@ -89,6 +90,7 @@ export default function App() {
     setTimestamps(pStore.get(STORAGE_KEYS.WATCH_TIMESTAMPS) || {});
     setHistory(pStore.get(STORAGE_KEYS.HISTORY) || []);
     setWatched(pStore.get(STORAGE_KEYS.WATCHED) || {});
+    setSeriesNext(pStore.get(STORAGE_KEYS.SERIES_NEXT) || {});
   }, [pStore]);
 
   // ── Multi-source content rows (global — shared across all profiles) ───────
@@ -387,6 +389,23 @@ export default function App() {
     });
   }, [getMediaType, pStore]);
 
+  const addSeriesNext = useCallback((showId, entry) => {
+    setSeriesNext((prev) => {
+      const next = { ...prev, [showId]: entry };
+      pStore?.set(STORAGE_KEYS.SERIES_NEXT, next);
+      return next;
+    });
+  }, [pStore]);
+
+  const clearSeriesNext = useCallback((showId) => {
+    setSeriesNext((prev) => {
+      const next = { ...prev };
+      delete next[showId];
+      pStore?.set(STORAGE_KEYS.SERIES_NEXT, next);
+      return next;
+    });
+  }, [pStore]);
+
   const saveProgress = useCallback((key, pct) => {
     if (!pStore) return;
     setProgress((prev) => {
@@ -455,14 +474,20 @@ export default function App() {
     [history],
   );
 
-  const inProgress = useMemo(() =>
-    historyWithKeys.filter((h) => {
+  const inProgress = useMemo(() => {
+    const base = historyWithKeys.filter((h) => {
       if (watched[h._pk]) return false;
       const pct = progress[h._pk];
-      return pct != null && pct > 2 && pct < 98;
-    }),
-    [historyWithKeys, progress, watched],
-  );
+      return pct != null && pct > 5 && pct < 98;
+    });
+    const inProgressShowIds = new Set(
+      base.filter((h) => h.media_type === "tv").map((h) => String(h.id))
+    );
+    const nextEntries = Object.values(seriesNext).filter(
+      (e) => !inProgressShowIds.has(String(e.id))
+    );
+    return [...base, ...nextEntries];
+  }, [historyWithKeys, progress, watched, seriesNext]);
 
   const savedList = useMemo(() => {
     const orderedKeys = savedOrder
@@ -608,6 +633,8 @@ export default function App() {
                 watched={watched}
                 onMarkWatched={markWatched}
                 onMarkUnwatched={markUnwatched}
+                onSeriesNext={addSeriesNext}
+                onSeriesNextClear={clearSeriesNext}
                 offline={offline}
               />
             )}

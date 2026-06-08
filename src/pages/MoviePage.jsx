@@ -137,6 +137,7 @@ export default function MoviePage({
           setPlayerSource(src);
           storage.set(STORAGE_KEYS.PLAYER_SOURCE, src);
         }}
+        skipGate={true}
       />
     );
   }
@@ -179,6 +180,22 @@ export default function MoviePage({
               </div>
             )}
             <div className="detail-overview">{overview}</div>
+            <div className="source-picker-bar" style={{ marginBottom: "16px" }}>
+              {PLAYER_SOURCES.map((src) => (
+                <button
+                  key={src.id}
+                  className={`tv-btn source-picker-btn tv-focusable${playerSource === src.id ? " tv-btn-primary" : " tv-btn-ghost"}`}
+                  tabIndex={0}
+                  onClick={() => {
+                    setPlayerSource(src.id);
+                    storage.set(STORAGE_KEYS.PLAYER_SOURCE, src.id);
+                  }}
+                >
+                  {src.label}
+                  {src.note && <span className="source-picker-note">({src.note})</span>}
+                </button>
+              ))}
+            </div>
             <div className="detail-actions">
               {!restricted && (
                 <button className="tv-btn tv-btn-primary tv-focusable" tabIndex={0} onClick={handlePlay}>

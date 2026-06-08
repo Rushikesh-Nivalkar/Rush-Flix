@@ -11,13 +11,12 @@ export const HOME_ROWS = [
   { id: "personalMedia", label: "Personal Media" },
   { id: "publicDomain",  label: "Free to Watch" },
   { id: "friendsMedia",  label: "Friends' Picks" },
-  { id: "similar",       label: "Similar to…" },
+  { id: "similar",       label: "You Would Love This" },
   { id: "trendingMovies",label: "Trending Movies" },
   { id: "trendingTV",    label: "Trending Series" },
   { id: "topRated",      label: "Top Rated" },
-  { id: "genreAction",      label: "Action" },
-  { id: "genreDrama",       label: "Drama" },
-  { id: "genreComedy",      label: "Comedy" },
+  { id: "genreMovies",      label: "Movies" },
+  { id: "genreSeries",      label: "Series" },
   { id: "jsonCatalogue",    label: "My Catalogue" },
 ];
 
@@ -45,10 +44,3 @@ export function loadHomeLayout() {
   return { order, visible };
 }
 
-export function loadHomeViewMode() {
-  return storage.get("homeViewMode") || "carousel";
-}
-
-export function saveHomeViewMode(mode) {
-  storage.set("homeViewMode", mode);
-}

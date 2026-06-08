@@ -24,18 +24,19 @@ Rush Flix is a self-hosted, TV-first web app that aggregates metadata from TMDB 
 
 ### Playback
 - Stream movies and TV episodes through embedded players (no account required on those services)
-- Three switchable player sources: **Videasy**, **VidSrc**, **2Embed** — switch mid-session if one fails
+- Three switchable player sources: **Videasy**, **VidSrc**, **2Embed** — pick on detail page before playback, or switch mid-session
 - D-pad navigation fully supported on Android TV remotes (up/down/left/right/select/back)
 - Skip forward/back **±10 seconds** using left/right D-pad while a video is playing
 - Autoplay on episode/movie open — no manual play button tap required on Android TV
 - Up Next auto-advance after an episode ends *(video/direct mode only)*
 - Episode list overlay accessible with D-pad down while watching
+- Intro skip — AniSkip for anime (exact timestamps); configurable fixed duration (10–600s, default 90s) for all other content; modes: off / auto-skip / manual prompt
 
 ### Progress & Library
-- **Continue Watching** — resumes from the exact timestamp you left off, down to the second
+- **Continue Watching** — resumes from exact timestamp; 5% threshold prevents ghost entries; Up Next badge queues next episode automatically
 - Per-episode and per-movie progress bars visible in Library and episode lists
-- Watch history (last 50 titles, per profile)
-- **Watchlist** — save titles to watch later, manually reorderable
+- Watch History (last 50 titles, per profile) — displayed as horizontal carousel
+- **Watchlist** — save titles to watch later, displayed as horizontal carousel
 - Mark as Watched / Unwatch individual episodes or full seasons
 - Progress, history, and watchlist are all **per profile** — isolated between users
 
@@ -48,7 +49,7 @@ Rush Flix is a self-hosted, TV-first web app that aggregates metadata from TMDB 
 - Auto-detects anime content (TMDB genre 16 + Japanese origin country)
 - Fetches AniList metadata: studio, season year, episode count, clean descriptions
 - AniList season mapping — sequels listed as numbered seasons
-- **AniSkip** intro/outro detection with auto-skip or prompt mode *(video/direct mode only)*
+- **AniSkip** intro/outro detection with auto-skip or prompt mode
 
 ### Subtitles *(video/direct mode only)*
 - Auto-fetches subtitles on playback start
@@ -57,25 +58,32 @@ Rush Flix is a self-hosted, TV-first web app that aggregates metadata from TMDB 
 - Toggle on/off mid-playback
 
 ### TV Experience
-- Spatial D-pad navigation throughout all screens (powered by [BBC lrud-spatial](https://github.com/bbc/lrud-spatial))
+- Custom row-based D-pad navigation (tvNav.js) — replaced BBC lrud-spatial
 - TV-optimised full-screen layout — no mouse or touchscreen required
 - Android TV launcher banner with Rush Flix branding
 - Back button returns to previous screen without exiting the app
 - Media keys supported: Play/Pause, Fast Forward, Rewind
 - Focus management — cursor lands in the right place on every page transition
+- Source picker on the detail page — choose Videasy/VidSrc/2Embed before playback starts
+- Settings: 5-tab sidebar (Playback / Subtitles / Interface / Library / Data), fully D-pad navigable
+- QR key pairing — scan from phone to set TMDB, Wyzie, or SubDL API keys on TV
+- Genre rows: dynamic TMDB genre dropdown, Left/Right D-pad to cycle genres
 
 ### Settings & Customisation
+- 5-tab sidebar: Playback / Subtitles / Interface / Library / Data — all panels D-pad navigable
 - TMDB API key management (your own key, free from TMDB)
+- QR key pairing — scan from phone to pair TMDB, Wyzie, or SubDL API keys on TV
 - Accent colour themes
 - Font size: normal / large
 - Compact mode for episode lists
 - Reduce animations toggle
 - Subtitle language, size, and position defaults
-- Intro skip mode: off / prompt / auto
+- Intro skip mode: off / prompt / auto; configurable fixed duration (10–600 seconds) for non-anime content
 - Age/parental content limit (hides titles above a rating threshold)
 - Watch history toggle (disable tracking entirely)
 - Start page selection (Home, Library, etc.)
 - Rating country selection
+- Home page row ordering and visibility — toggle and reorder rows
 
 ### Data & Sync
 - All data stored locally in `localStorage` — no account, no cloud required
@@ -134,11 +142,47 @@ Switch sources from the picker bar above the player. If one source fails for a s
 
 ---
 
+## What's New — v1.1.1
+
+### TV Navigation Overhaul
+- Custom row-based D-pad navigation (`tvNav.js`) replaces BBC lrud-spatial
+- Two-zone settings model — sidebar (↕ cycles tabs) + panel (↕ moves between fields); ← exits to sidebar
+- Genre rows: Left/Right D-pad cycles TMDB genres without intercepting vertical nav
+
+### Source Picker on Detail Page
+- Videasy / VidSrc / 2Embed pills on Movie and TV detail pages — pick before playback, no mid-session switching needed
+
+### Intro Skip
+- Anime: AniSkip API exact timestamps; all other content: configurable fixed duration (10–600s, default 90s)
+- Modes: off / auto-skip / manual prompt
+
+### Home Page
+- Recently Added row: TMDB now_playing + on_the_air interleaved 1:1
+- You Would Love This row: recommendations from last 3 watched, filtered against history
+- Genre rows: dynamic TMDB dropdown (Movies + Series), top-rated sort, vote_count ≥ 100
+- Cross-row deduplication — same title never appears in two rows simultaneously
+
+### Library Page
+- Continue Watching, Watchlist, and Watch History all converted to horizontal carousels
+- Continue Watching threshold 2% → 5% (eliminates ghost entries from stalled iframes)
+- SERIES_NEXT map queues next episode on completion; Up Next badge in row
+
+### QR Key Setup
+- Pair TMDB, Wyzie, or SubDL API keys by scanning a QR code from your phone — no TV keyboard required
+
+### Settings
+- 5-tab sidebar: Playback / Subtitles / Interface / Library / Data — fully D-pad navigable
+
+### Build
+- Signed release APK via `gradlew.bat assembleRelease` — Android Studio no longer required
+- v1.1.1 (versionCode 2)
+
+---
+
 ## Requirements
 
 - A free [TMDB API Read Access Token](https://www.themoviedb.org/settings/api) — needed for metadata and search
 - An Android TV, Google TV, or Chromecast with Google TV device *(for the APK)*
-- Android Studio *(to build the APK from source)*
 - Node.js ≥ 18
 
 ---
@@ -180,7 +224,16 @@ npx cap copy android
 npx cap open android
 ```
 
-In Android Studio: **Build → Generate Signed Bundle / APK → APK**, follow the signing wizard.
+Or build a signed release APK from the command line:
+
+```bash
+cd android
+./gradlew assembleRelease
+```
+
+Output: `android/app/build/outputs/apk/release/app-release.apk`
+
+> Requires `android/keystore.properties` (not committed — contains signing credentials).
 
 ---
 
@@ -200,7 +253,7 @@ In Android Studio: **Build → Generate Signed Bundle / APK → APK**, follow th
 | Layer | Technology |
 |---|---|
 | UI framework | React 18 + Vite |
-| TV navigation | [@bbc/tv-lrud-spatial](https://github.com/bbc/lrud-spatial) |
+| TV navigation | Custom row-based D-pad navigation (tvNav.js) |
 | Animations | [Motion](https://motion.dev/) |
 | Android wrapper | [Capacitor 8](https://capacitorjs.com/) |
 | Movie/TV metadata | [TMDB API](https://developer.themoviedb.org/) |
@@ -224,7 +277,8 @@ Rush-Flix/
 │   │   ├── MediaCard.jsx         # Movie/show card with progress bar + D-pad focus
 │   │   ├── RushFlixLogo.jsx      # Animated RF logo (icon mark + wordmark)
 │   │   ├── SearchModal.jsx       # Full-screen search overlay with D-pad trap
-│   │   └── TrailerModal.jsx      # YouTube trailer overlay
+│   │   ├── TrailerModal.jsx      # YouTube trailer overlay
+│   │   └── ApiKeyQRModal.jsx     # QR code pairing for TMDB / Wyzie / SubDL API keys
 │   ├── pages/
 │   │   ├── HomePage.jsx          # Flat horizontal card rows — Continue Watching, Trending, etc.
 │   │   ├── MoviePage.jsx         # Movie detail page + player
@@ -236,12 +290,13 @@ Rush-Flix/
 │   │   └── PhoneSetupPage.jsx    # QR-code phone setup screen
 │   ├── utils/
 │   │   ├── api.js                # TMDB fetch, player sources, AniList
-│   │   ├── tvNav.js              # D-pad spatial navigation — lrud-spatial + sticky-header scroll fix
+│   │   ├── tvNav.js              # Custom row-based D-pad navigation (ROW_THRESHOLD=30px)
 │   │   ├── storage.js            # localStorage helpers + STORAGE_KEYS
 │   │   ├── profiles.js           # Profile management
 │   │   ├── aniSkip.js            # AniSkip intro/outro timings
 │   │   ├── subtitleFetch.js      # Subtitle URL fetching
 │   │   ├── lanSync.js            # LAN sync push/pull
+│   │   ├── homeLayout.js         # Home row config — genreMovies/genreSeries dynamic rows
 │   │   └── appearance.js         # Accent colour + theme helpers
 │   ├── styles/
 │   │   ├── global.css            # Base styles — layout, cards, search modal, typography
@@ -280,5 +335,4 @@ The author provides this code for educational purposes. **Use at your own risk.*
 - [TMDB](https://www.themoviedb.org/) — movie and TV metadata
 - [AniList](https://anilist.co/) — anime metadata and season graphs
 - [AniSkip](https://aniskip.com/) — anime intro/outro timing data
-- [BBC lrud-spatial](https://github.com/bbc/lrud-spatial) — TV spatial navigation engine
 - [StreamBert](https://github.com/truelockmc/streambert) — original inspiration and architecture reference

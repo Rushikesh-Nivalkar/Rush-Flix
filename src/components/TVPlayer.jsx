@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { storage, STORAGE_KEYS, getCurrentPStore } from "../utils/storage";
-import { PLAYER_SOURCES, getSourceUrl, NON_ANIME_DEFAULT_SOURCE } from "../utils/api";
+import { PLAYER_SOURCES, getSourceUrl, NON_ANIME_DEFAULT_SOURCE, checkSourceRedirect } from "../utils/api";
 import { fetchAniSkipTimings } from "../utils/aniSkip";
 import { fetchSubtitleUrl, revokeSubtitleUrl } from "../utils/subtitleFetch";
 import { SUBTITLE_LANGUAGES } from "../utils/subtitles";
@@ -37,6 +37,7 @@ export default function TVPlayer({
   malId = null,
   // Network
   offline = false,
+  skipGate = false,
 }) {
   const [url, setUrl] = useState(() => {
     const initUrl = prefilledUrl || (storage.get(STORAGE_KEYS.CUSTOM_SOURCES) || {})[progressKey] || "";
@@ -62,7 +63,8 @@ export default function TVPlayer({
   );
   const [showLangPicker, setShowLangPicker] = useState(false);
   const [subtitleLoading, setSubtitleLoading] = useState(false);
-  const [iframeActive, setIframeActive] = useState(false);
+  const [iframeActive, setIframeActive] = useState(skipGate);
+  const [showDebug, setShowDebug] = useState(false);
 
   const subtitleSize = getCurrentPStore().get(STORAGE_KEYS.SUBTITLE_SIZE) || "medium";
   const subtitlePosition = getCurrentPStore().get(STORAGE_KEYS.SUBTITLE_POSITION) || "bottom";
@@ -75,6 +77,7 @@ export default function TVPlayer({
   const positionRestored = useRef(false);
 
   const introSkipMode = getCurrentPStore().get(STORAGE_KEYS.INTRO_SKIP_MODE) || "prompt";
+  const introSkipDuration = getCurrentPStore().get(STORAGE_KEYS.INTRO_SKIP_DURATION) || 90;
   const hasNextEp = currentEpIndex >= 0 && currentEpIndex < episodeList.length - 1;
   const nextEp = hasNextEp ? episodeList[currentEpIndex + 1] : null;
 
@@ -95,6 +98,7 @@ export default function TVPlayer({
   // Keyboard: back, skip ±10s, toggle episode list
   useEffect(() => {
     const handler = (e) => {
+      if (e.key === "d" || e.key === "D") { setShowDebug((v) => !v); return; }
       if (e.key === "Backspace" || e.key === "Escape" || e.key === "GoBack") {
         if (showEpList) { e.preventDefault(); setShowEpList(false); return; }
         if (upNextCountdown !== null) { e.preventDefault(); cancelUpNext(); return; }
@@ -138,13 +142,17 @@ export default function TVPlayer({
     return () => window.removeEventListener("keydown", handler);
   }, [onClose, mode, showEpList, upNextCountdown, episodeList.length]);
 
-  // Fetch AniSkip intro timings for anime episodes
+  // Fetch intro timings: AniSkip for anime, fixed window for all other content
   useEffect(() => {
-    if (!malId || !episode || introSkipMode === "off") return;
-    fetchAniSkipTimings(malId, episode).then((timings) => {
-      if (timings?.intro) setSkipIntroSegment(timings.intro);
-    }).catch(() => {});
-  }, [malId, episode, introSkipMode]);
+    if (introSkipMode === "off") { setSkipIntroSegment(null); return; }
+    if (malId && episode) {
+      fetchAniSkipTimings(malId, episode).then((timings) => {
+        if (timings?.intro) setSkipIntroSegment(timings.intro);
+      }).catch(() => {});
+    } else {
+      setSkipIntroSegment({ startTime: 0, endTime: introSkipDuration });
+    }
+  }, [malId, episode, introSkipMode, introSkipDuration]);
 
   // Apply subtitle size CSS var
   useEffect(() => {
@@ -208,7 +216,39 @@ export default function TVPlayer({
   }, [mode, saveProgress]);
 
   // Reset iframe gate on source/url change so the Watch button reappears.
-  useEffect(() => { setIframeActive(false); }, [url]);
+  useEffect(() => { if (!skipGate) setIframeActive(false); }, [url, skipGate]);
+
+  // APK only: probe current source base URL for redirects. If domain changed,
+  // silently save new base to localStorage and reload player URL. Transparent to user.
+  useEffect(() => {
+    if (mode !== "iframe" || !tmdbId) return;
+    let cancelled = false;
+    checkSourceRedirect(activeSource).then((newOrigin) => {
+      if (cancelled || !newOrigin) return;
+      try {
+        const overrides = JSON.parse(localStorage.getItem("rushflix_playerSourceOverrides") || "{}");
+        if (overrides[activeSource] === newOrigin) return;
+        overrides[activeSource] = newOrigin;
+        localStorage.setItem("rushflix_playerSourceOverrides", JSON.stringify(overrides));
+        const newUrl = getSourceUrl(activeSource, mediaType, tmdbId, season, episode);
+        console.log(`[RF] redirect auto-update: ${activeSource} → ${newOrigin} | url="${newUrl}"`);
+        setUrl(newUrl);
+      } catch {}
+    });
+    return () => { cancelled = true; };
+  }, [activeSource]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-focus iframe on mount so TV D-pad input hits the embedded player immediately.
+  useEffect(() => {
+    if (mode !== "iframe") return;
+    const t = setTimeout(() => iframeRef.current?.focus(), 300);
+    return () => clearTimeout(t);
+  }, [mode, url]);
+
+  // Debug: log url/mode/source on every change
+  useEffect(() => {
+    console.log(`[RF] state url="${url}" mode=${mode} source=${activeSource} bridge=${!!window.RushFlixBridge} skipGate=${skipGate} iframeActive=${iframeActive}`);
+  }, [url, mode, activeSource, skipGate, iframeActive]);
 
   // Open native overlay WebView when an embed URL is active (APK only).
   // Falls back gracefully — browser keeps using the <iframe> below.
@@ -245,8 +285,9 @@ export default function TVPlayer({
 
   // Browser fallback: focus iframe on load (no postMessage — no injected script in browser).
   const handleIframeLoad = useCallback(() => {
+    console.log(`[RF] iframe loaded url="${url}"`);
     iframeRef.current?.focus();
-  }, []);
+  }, [url]);
 
   // Restore seek position once video metadata is loaded
   const handleCanPlay = useCallback(() => {
@@ -312,6 +353,7 @@ export default function TVPlayer({
   function handlePlay() {
     const target = urlInput.trim() || url;
     if (!target) return;
+    console.log(`[RF] play: "${target}" → mode=${detectMode(target)}`);
     const sources = storage.get(STORAGE_KEYS.CUSTOM_SOURCES) || {};
     sources[progressKey] = target;
     storage.set(STORAGE_KEYS.CUSTOM_SOURCES, sources);
@@ -325,6 +367,7 @@ export default function TVPlayer({
     const saved = storage.get(STORAGE_KEYS.CUSTOM_SOURCES) || {};
     if (saved[progressKey]) { delete saved[progressKey]; storage.set(STORAGE_KEYS.CUSTOM_SOURCES, saved); }
     const newUrl = getSourceUrl(srcId, mediaType, tmdbId, season, episode);
+    console.log(`[RF] source change: ${activeSource} → ${srcId} | url="${newUrl}"`);
     setUrl(newUrl);
     setMode(detectMode(newUrl));
     setActiveSource(srcId);
@@ -382,6 +425,29 @@ export default function TVPlayer({
     <div className="tv-player-overlay">
       {offline && (
         <div className="player-offline-banner">No internet · Playback may fail</div>
+      )}
+
+      {/* ── Debug overlay (press D to toggle) ────────────────────────────── */}
+      {showDebug && (
+        <div style={{
+          position: "fixed", top: 60, right: 20, zIndex: 9999,
+          background: "rgba(0,0,0,0.88)", color: "#0f0", fontFamily: "monospace",
+          fontSize: 13, padding: "12px 16px", borderRadius: 8, maxWidth: 440,
+          border: "1px solid #333", pointerEvents: "none", lineHeight: 1.7,
+        }}>
+          <div style={{ color: "#ff0", marginBottom: 6, fontWeight: "bold" }}>[RF DEBUG] — D to hide</div>
+          <div>mode: <b>{mode}</b></div>
+          <div>source: <b>{activeSource}</b></div>
+          <div>skipGate: <b>{String(skipGate)}</b></div>
+          <div>iframeActive: <b>{String(iframeActive)}</b></div>
+          <div>bridge: <b>{String(!!window.RushFlixBridge)}</b></div>
+          <div>offline: <b>{String(offline)}</b></div>
+          <div>buffering: <b>{String(buffering)}</b></div>
+          <div>videoError: <b>{String(videoError)}</b></div>
+          <div>introMode: <b>{introSkipMode}</b></div>
+          <div>skipSeg: <b>{skipIntroSegment ? `${skipIntroSegment.startTime}–${skipIntroSegment.endTime}s` : "none"}</b></div>
+          <div style={{ marginTop: 6, wordBreak: "break-all", color: "#8ff" }}>url: {url || "(none)"}</div>
+        </div>
       )}
 
       {/* ── URL input screen ─────────────────────────────────────────────── */}
@@ -448,7 +514,14 @@ export default function TVPlayer({
             onWaiting={() => setBuffering(true)}
             onPlaying={() => { setBuffering(false); setVideoError(false); }}
             onCanPlay={handleCanPlay}
-            onError={() => { setVideoError(true); setBuffering(false); }}
+            onError={() => {
+              const v = videoRef.current;
+              const code = v?.error?.code;
+              const msg = v?.error?.message || "unknown";
+              console.error(`[RF] video error: code=${code} msg="${msg}" url="${url}"`);
+              setVideoError(true);
+              setBuffering(false);
+            }}
             onEnded={handleVideoEnded}
           >
             {subtitleUrl && (
@@ -584,69 +657,15 @@ export default function TVPlayer({
       {/* ── Iframe embed player ──────────────────────────────────────────── */}
       {mode === "iframe" && (
         <div className="tv-iframe-wrap">
-          {PLAYER_SOURCES.length > 1 && (
-            <div className="source-picker-bar">
-              {PLAYER_SOURCES.map((src) => (
-                <button
-                  key={src.id}
-                  className={`tv-btn source-picker-btn${activeSource === src.id ? " tv-btn-primary" : " tv-btn-ghost"}`}
-                  tabIndex={0}
-                  onClick={() => handleSourceChange(src.id)}
-                >
-                  {src.label}
-                  {src.note && <span className="source-picker-note">({src.note})</span>}
-                </button>
-              ))}
-            </div>
-          )}
-          {/* Browser fallback — APK uses native overlay WebView instead */}
           {!window.RushFlixBridge && (
-            iframeActive ? (
-              <iframe
-                ref={iframeRef}
-                className="tv-iframe"
-                src={url}
-                allowFullScreen
-                allow="autoplay; fullscreen; picture-in-picture"
-                onLoad={handleIframeLoad}
-              />
-            ) : (
-              <button
-                className="iframe-watch-btn tv-focusable"
-                tabIndex={0}
-                autoFocus
-                onClick={() => setIframeActive(true)}
-              >
-                <span className="iframe-watch-btn__icon">▶</span>
-                <span className="iframe-watch-btn__label">Watch</span>
-              </button>
-            )
+            <iframe
+              ref={iframeRef}
+              className="tv-iframe"
+              src={url}
+              allow="autoplay; fullscreen; picture-in-picture"
+              onLoad={handleIframeLoad}
+            />
           )}
-
-          {hasNextEp && (
-            <button
-              className="next-ep-btn tv-focusable"
-              tabIndex={0}
-              onClick={() => {
-                onProgress?.(100);
-                playNextEp();
-              }}
-            >
-              Next: E{nextEp.episode_number} →
-            </button>
-          )}
-
-          {episodeList.length > 1 && (
-            <button className="ep-list-toggle-btn tv-focusable" tabIndex={0} onClick={() => setShowEpList((v) => !v)}>
-              ☰ Episodes
-            </button>
-          )}
-
-          <button className="tv-player-close tv-focusable" tabIndex={0} onClick={onClose}>
-            ✕ Close
-          </button>
-
-          {EpListOverlay}
         </div>
       )}
     </div>

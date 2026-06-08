@@ -19,6 +19,7 @@ export default function TVPage({
   timestamps = {}, saveTimestamp = null,
   onBack, onSettings,
   watched, onMarkWatched, onMarkUnwatched,
+  onSeriesNext, onSeriesNextClear,
   offline = false,
 }) {
   const [details, setDetails] = useState(null);
@@ -94,11 +95,13 @@ export default function TVPage({
   const epKey = (s, ep) => `tv_${item.id}_s${s}e${ep}`;
 
   function handlePlayEpisode(ep) {
+    onSeriesNextClear?.(item.id);
     onHistory({ ...item, media_type: "tv", season, episode: ep.episode_number, episodeName: ep.name });
     setPlaying({ season, episode: ep.episode_number, name: ep.name });
   }
 
   function handleNextEpisode(ep) {
+    onSeriesNextClear?.(item.id);
     onHistory({ ...item, media_type: "tv", season, episode: ep.episode_number, episodeName: ep.name });
     setPlaying({ season, episode: ep.episode_number, name: ep.name });
   }
@@ -107,7 +110,25 @@ export default function TVPage({
     if (!playing) return;
     const pk = epKey(playing.season, playing.episode);
     saveProgress(pk, pct);
-    if (pct > 90) onMarkWatched(pk);
+    if (pct > 90) {
+      onMarkWatched(pk);
+      const idx = episodes.findIndex((e) => e.episode_number === playing.episode);
+      const nextEp = episodes[idx + 1];
+      if (nextEp && onSeriesNext) {
+        onSeriesNext(item.id, {
+          id: item.id,
+          title: item.title || item.name,
+          name: item.name || item.title,
+          poster_path: item.poster_path,
+          media_type: "tv",
+          season: playing.season,
+          episode: nextEp.episode_number,
+          episodeName: nextEp.name,
+          watchedAt: Date.now(),
+          _isSeriesNext: true,
+        });
+      }
+    }
   }
 
   function handleEpTimestamp(t) {
@@ -145,6 +166,7 @@ export default function TVPage({
           setPlayerSource(src);
           storage.set(STORAGE_KEYS.PLAYER_SOURCE, src);
         }}
+        skipGate={true}
       />
     );
   }
@@ -179,6 +201,22 @@ export default function TVPage({
               </div>
             )}
             <div className="detail-overview">{overview}</div>
+            <div className="source-picker-bar" style={{ marginBottom: "16px" }}>
+              {PLAYER_SOURCES.map((src) => (
+                <button
+                  key={src.id}
+                  className={`tv-btn source-picker-btn tv-focusable${playerSource === src.id ? " tv-btn-primary" : " tv-btn-ghost"}`}
+                  tabIndex={0}
+                  onClick={() => {
+                    setPlayerSource(src.id);
+                    storage.set(STORAGE_KEYS.PLAYER_SOURCE, src.id);
+                  }}
+                >
+                  {src.label}
+                  {src.note && <span className="source-picker-note">({src.note})</span>}
+                </button>
+              ))}
+            </div>
             <div className="detail-actions">
               <button className="tv-btn tv-btn-ghost tv-focusable" tabIndex={0} onClick={onSave}>
                 {isSaved ? <BookmarkFillIcon /> : <BookmarkIcon />}

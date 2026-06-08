@@ -88,6 +88,50 @@ export const tmdbFetch = async (path, apiKey) => {
 
 // ── Player Sources ────────────────────────────────────────────────────────────
 
+// Hardcoded defaults. getBase() reads the auto-saved override first at call-time.
+const SOURCE_DEFAULTS = {
+  videasy:  "https://player.videasy.to",
+  vidsrc:   "https://vidsrc.to/embed",
+  "2embed": "https://www.2embed.online/embed",
+};
+
+// Reads auto-saved redirect override from localStorage at call-time.
+// Falls back to SOURCE_DEFAULTS. Never throws.
+function getBase(id) {
+  try {
+    const overrides = JSON.parse(localStorage.getItem("rushflix_playerSourceOverrides") || "{}");
+    const b = overrides[id];
+    return (typeof b === "string" && b.trim()) ? b.trim().replace(/\/$/, "") : SOURCE_DEFAULTS[id];
+  } catch {
+    return SOURCE_DEFAULTS[id];
+  }
+}
+
+// APK-only: probes the current effective base URL via Capacitor native HTTP (no CORS restriction).
+// Follows the redirect chain. Returns the new origin if domain changed, else null.
+// Probes current effective URL (override → default) to handle cascading domain changes.
+// Browser: returns null immediately (isNativePlatform() === false).
+export async function checkSourceRedirect(id) {
+  try {
+    const { Capacitor, CapacitorHttp } = await import("@capacitor/core");
+    if (!Capacitor.isNativePlatform()) return null;
+    const currentBase = getBase(id);
+    const res = await CapacitorHttp.request({
+      method: "GET",
+      url: currentBase + "/",
+      responseType: "text",
+      connectTimeout: 6000,
+      readTimeout: 6000,
+    });
+    if (!res?.url) return null;
+    const finalOrigin = new URL(res.url).origin;
+    if (finalOrigin === new URL(currentBase).origin) return null;
+    return finalOrigin;
+  } catch {
+    return null;
+  }
+}
+
 export const PLAYER_SOURCES = [
   {
     id: "videasy",
@@ -95,8 +139,8 @@ export const PLAYER_SOURCES = [
     tag: null,
     note: null,
     supportsProgress: false,
-    movieUrl: (id) => `https://player.videasy.net/movie/${id}?autoplay=1`,
-    tvUrl: (id, season, ep) => `https://player.videasy.net/tv/${id}/${season}/${ep}?autoplay=1`,
+    movieUrl: (id) => `${getBase("videasy")}/movie/${id}`,
+    tvUrl: (id, season, ep) => `${getBase("videasy")}/tv/${id}/${season}/${ep}`,
   },
   {
     id: "vidsrc",
@@ -104,8 +148,8 @@ export const PLAYER_SOURCES = [
     tag: null,
     note: null,
     supportsProgress: false,
-    movieUrl: (id) => `https://vidsrc.to/embed/movie/${id}?autoplay=1`,
-    tvUrl: (id, season, ep) => `https://vidsrc.to/embed/tv/${id}/${season}/${ep}?autoplay=1`,
+    movieUrl: (id) => `${getBase("vidsrc")}/movie/${id}`,
+    tvUrl: (id, season, ep) => `${getBase("vidsrc")}/tv/${id}/${season}/${ep}`,
   },
   {
     id: "2embed",
@@ -113,8 +157,8 @@ export const PLAYER_SOURCES = [
     tag: null,
     note: "unstable",
     supportsProgress: false,
-    movieUrl: (id) => `https://www.2embed.online/embed/movie/${id}?autoplay=1`,
-    tvUrl: (id, season, ep) => `https://www.2embed.online/embed/tv/${id}/${season}/${ep}?autoplay=1`,
+    movieUrl: (id) => `${getBase("2embed")}/movie/${id}`,
+    tvUrl: (id, season, ep) => `${getBase("2embed")}/tv/${id}/${season}/${ep}`,
   },
 ];
 

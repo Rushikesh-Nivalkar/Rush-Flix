@@ -1,0 +1,10 @@
+@echo off
+REM Copy this file to adb-install.bat (gitignored) and set your device IP:port.
+REM Find the port: on your Android TV, enable ADB over Wi-Fi and note the port shown.
+REM The port changes every time you re-enable ADB — update this file when it does.
+REM Run: adb connect YOUR_TV_IP:PORT  (first time, or after reboot)
+
+set ADB="%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe"
+set DEVICE=192.168.1.X:XXXXX
+
+%ADB% -s %DEVICE% install -r android\app\build\outputs\apk\debug\app-debug.apk

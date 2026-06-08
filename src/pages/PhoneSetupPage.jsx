@@ -1,7 +1,57 @@
 import { useState, useEffect } from "react";
 import RushFlixLogo from "../components/RushFlixLogo";
 
+const SETUP_CONFIG = {
+  phone: {
+    title: "Add TMDB Token",
+    hint: (
+      <>
+        Go to{" "}
+        <a href="https://www.themoviedb.org/settings/api" style={{ color: "#e50914" }} target="_blank" rel="noreferrer">
+          themoviedb.org → Settings → API
+        </a>{" "}
+        and copy the <strong>API Read Access Token</strong> (long JWT starting with eyJ…).
+      </>
+    ),
+    placeholder: "Paste token here (eyJ…)",
+    inputRows: 5,
+    inputFont: "monospace",
+  },
+  wyzie: {
+    title: "Add Wyzie API Key",
+    hint: (
+      <>
+        Go to{" "}
+        <a href="https://sub.wyzie.io" style={{ color: "#e50914" }} target="_blank" rel="noreferrer">
+          sub.wyzie.io
+        </a>{" "}
+        and claim a free key (no account needed). Paste the key below.
+      </>
+    ),
+    placeholder: "wyzie-…",
+    inputRows: 2,
+    inputFont: "system-ui, sans-serif",
+  },
+  subdl: {
+    title: "Add SubDL API Key",
+    hint: (
+      <>
+        Register at{" "}
+        <a href="https://subdl.com/settings" style={{ color: "#e50914" }} target="_blank" rel="noreferrer">
+          subdl.com → Settings
+        </a>{" "}
+        and copy your API key. Paste it below.
+      </>
+    ),
+    placeholder: "SubDL API key…",
+    inputRows: 2,
+    inputFont: "system-ui, sans-serif",
+  },
+};
+
 export default function PhoneSetupPage() {
+  const setupType = new URLSearchParams(window.location.search).get("setup") || "phone";
+  const config = SETUP_CONFIG[setupType] || SETUP_CONFIG.phone;
   const [token, setToken] = useState("");
   const [status, setStatus] = useState("idle"); // idle | submitting | done | error
 
@@ -31,34 +81,23 @@ export default function PhoneSetupPage() {
     <div style={s.page}>
       <div style={s.card}>
         <RushFlixLogo size="md" animate={false} />
-        <h1 style={s.title}>Add TMDB Token</h1>
+        <h1 style={s.title}>{config.title}</h1>
 
         {status === "done" ? (
           <div style={s.doneWrap}>
             <div style={s.check}>✓</div>
-            <p style={s.doneText}>Token received. Check your TV — it should load now.</p>
+            <p style={s.doneText}>Key received. Check your TV — it should load now.</p>
           </div>
         ) : (
           <>
-            <p style={s.hint}>
-              Go to{" "}
-              <a
-                href="https://www.themoviedb.org/settings/api"
-                style={s.link}
-                target="_blank"
-                rel="noreferrer"
-              >
-                themoviedb.org → Settings → API
-              </a>{" "}
-              and copy the <strong>API Read Access Token</strong> (long JWT starting with eyJ…).
-            </p>
+            <p style={s.hint}>{config.hint}</p>
 
             <textarea
-              style={s.input}
-              placeholder="Paste token here (eyJ…)"
+              style={{ ...s.input, fontFamily: config.inputFont }}
+              placeholder={config.placeholder}
               value={token}
               onChange={(e) => { setToken(e.target.value); if (status === "error") setStatus("idle"); }}
-              rows={5}
+              rows={config.inputRows}
               autoFocus
             />
 

@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useState, useEffect } from "react";
 import MediaCard from "../components/MediaCard";
-import { imgUrl } from "../utils/api";
-import { EyeIcon, WatchedIcon } from "../components/Icons";
+import { EyeIcon } from "../components/Icons";
 import { useRatings, getRatingForItem } from "../utils/useRatings";
 import { isRestricted } from "../utils/ageRating";
 import { storage, STORAGE_KEYS } from "../utils/storage";
@@ -17,8 +16,8 @@ export default function LibraryPage({
   onMarkUnwatched,
 }) {
   const allItems = useMemo(
-    () => [...inProgress, ...saved],
-    [inProgress, saved],
+    () => [...inProgress, ...saved, ...history],
+    [inProgress, saved, history],
   );
   const { ratingsMap, ageLimitSetting } = useRatings(allItems);
 
@@ -60,8 +59,8 @@ export default function LibraryPage({
       {inProgress.length > 0 && (
         <div className="library-section">
           <div className="library-section-title">Continue Watching</div>
-          <div className="cards-grid">
-            {inProgress.map((item, i) => {
+          <div className="cards-row">
+            {inProgress.map((item) => {
               const pk =
                 item.media_type === "movie"
                   ? `movie_${item.id}`
@@ -103,7 +102,7 @@ export default function LibraryPage({
               </span>
             )}
           </div>
-          <div className="cards-grid">
+          <div className="cards-row">
             {saved.map((item) => {
               const r = getRating(item);
               const restr = itemRestricted(item);
@@ -127,54 +126,22 @@ export default function LibraryPage({
       {history.length > 0 && (
         <div className="library-section">
           <div className="library-section-title">Watch History</div>
-          <div className="history-rows">
+          <div className="cards-row">
             {history.map((item, i) => {
-              const pk =
-                item.media_type === "movie"
-                  ? `movie_${item.id}`
-                  : `tv_${item.id}_s${item.season}e${item.episode}`;
-              const isWatched = !!watched?.[pk];
+              const r = getRating(item);
+              const restr = itemRestricted(item);
               return (
-                <div
-                  key={pk}
-                  className="history-row"
+                <MediaCard
+                  key={`history_${i}_${item.media_type}_${item.id}`}
+                  item={item}
                   onClick={() => onSelect(item)}
-                >
-                  <div className="history-thumb">
-                    {item.poster_path && (
-                      <img src={imgUrl(item.poster_path, "w92")} alt="" />
-                    )}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div
-                      style={{
-                        fontSize: 14,
-                        fontWeight: 500,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 6,
-                      }}
-                    >
-                      {item.title}
-                      {isWatched && <WatchedIcon size={16} />}
-                    </div>
-                    <div style={{ fontSize: 12, color: "var(--text3)" }}>
-                      {item.media_type === "tv" &&
-                        item.season &&
-                        `S${item.season}E${item.episode} · `}
-                      {new Date(item.watchedAt).toLocaleDateString("en-US", {
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
-                      })}
-                    </div>
-                  </div>
-                  <span
-                    className={`search-result-type ${item.media_type === "tv" ? "type-tv" : "type-movie"}`}
-                  >
-                    {item.media_type === "tv" ? "Series" : "Movie"}
-                  </span>
-                </div>
+                  progress={0}
+                  watched={watched}
+                  onMarkWatched={onMarkWatched}
+                  onMarkUnwatched={onMarkUnwatched}
+                  ageRating={r.cert}
+                  restricted={restr}
+                />
               );
             })}
           </div>
