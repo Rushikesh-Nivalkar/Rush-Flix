@@ -191,10 +191,10 @@ Switch sources from the picker bar above the player. If one source fails for a s
 
 ### Sideloading the APK onto a TV (Recommended)
 
-1. Build the APK (see **Building from Source** below)
+1. Download **`rush-flix-v1.1.1.apk`** from the [Releases page](https://github.com/Rushikesh-Nivalkar/Rush-Flix/releases)
 2. Enable **Unknown Sources** / **Install Unknown Apps** on your TV device
-3. Transfer the APK via USB, local network share, or a file manager app
-4. Install and launch **Rush Flix** from the TV apps list
+3. Transfer the APK to your TV via USB drive, local network share, or a file manager app — then open and install it
+4. Launch **Rush Flix** from the TV apps list
 5. On first launch, enter your TMDB Read Access Token when prompted
 
 ### Running as a Web App on Local Network
