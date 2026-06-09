@@ -11,8 +11,8 @@ import { SUBTITLE_LANGUAGES } from "../utils/subtitles";
 import { DEFAULT_INVIDIOUS_BASE } from "../components/TrailerModal";
 import { RATING_COUNTRIES } from "../utils/ageRating";
 import { WarningIcon } from "../components/Icons";
-
-const checkForUpdates = async () => ({ hasUpdate: false });
+import UpdateDialog from "../components/UpdateDialog";
+import { checkForUpdates, APP_VERSION } from "../utils/updateChecker";
 import {
   HOME_ROWS,
   loadHomeLayout,
@@ -551,23 +551,19 @@ function CleanRow({
 }
 
 // ── Version & Update Section ──────────────────────────────────────────────────
+// ── Version Section ───────────────────────────────────────────────────────────
 function VersionSection() {
   const [checking, setChecking] = useState(false);
-  const [result, setResult] = useState(null); // { latest, current, url, hasUpdate } | { error }
-  const [autoCheck, setAutoCheck] = useState(() => {
-    const stored = storage.get(STORAGE_KEYS.AUTO_CHECK_UPDATES);
-    return stored === null || stored === undefined ? true : !!stored;
+  // result: null | { hasUpdate, latest, apkUrl, releaseNotes } | { error: string }
+  const [result, setResult] = useState(() => {
+    try {
+      const raw = localStorage.getItem("rushflix_pendingUpdate");
+      if (!raw) return null;
+      const info = JSON.parse(raw);
+      return { hasUpdate: true, ...info };
+    } catch { return null; }
   });
-  const [autoSaved, setAutoSaved] = useState(false);
-  const [currentVersion, setCurrentVersion] = useState("0.0.0");
-
-  useEffect(() => {
-    if (null?.getAppVersion) {
-      null.getAppVersion().then((v) => {
-        setCurrentVersion(v);
-      });
-    }
-  }, []);
+  const [showDialog, setShowDialog] = useState(false);
 
   const runCheck = async () => {
     setChecking(true);
@@ -575,6 +571,16 @@ function VersionSection() {
     try {
       const r = await checkForUpdates();
       setResult(r);
+      if (r.hasUpdate) {
+        localStorage.setItem("rushflix_pendingUpdate", JSON.stringify({
+          latest: r.latest,
+          apkUrl: r.apkUrl,
+          releaseNotes: r.releaseNotes,
+        }));
+        setShowDialog(true);
+      } else {
+        localStorage.removeItem("rushflix_pendingUpdate");
+      }
     } catch (e) {
       setResult({ error: e.message || "Could not reach GitHub." });
     } finally {
@@ -582,48 +588,33 @@ function VersionSection() {
     }
   };
 
-  const toggleAuto = (val) => {
-    setAutoCheck(val);
-    storage.set(STORAGE_KEYS.AUTO_CHECK_UPDATES, val ? 1 : 0);
-    setAutoSaved(true);
-    setTimeout(() => setAutoSaved(false), 1800);
-  };
-
   return (
     <div style={{ marginBottom: 40 }}>
       <div className="settings-section-title">App Version</div>
 
-      {/* Version row */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 16,
-          flexWrap: "wrap",
-          marginBottom: 20,
-        }}
-      >
+      {showDialog && result?.hasUpdate && (
+        <UpdateDialog
+          latestVersion={result.latest}
+          apkUrl={result.apkUrl}
+          releaseNotes={result.releaseNotes}
+          onDismiss={() => setShowDialog(false)}
+        />
+      )}
+
+      <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 13, color: "var(--text3)" }}>
-            Current version
-          </span>
-          <code
-            style={{
-              fontSize: 14,
-              fontWeight: 700,
-              color: "var(--text)",
-              background: "var(--surface2)",
-              border: "1px solid var(--border)",
-              borderRadius: 6,
-              padding: "4px 12px",
-            }}
-          >
-            v{currentVersion}
+          <span style={{ fontSize: 13, color: "var(--text3)" }}>Current version</span>
+          <code style={{
+            fontSize: 14, fontWeight: 700, color: "var(--text)",
+            background: "var(--surface2)", border: "1px solid var(--border)",
+            borderRadius: 6, padding: "4px 12px",
+          }}>
+            v{APP_VERSION}
           </code>
         </div>
 
         <button
-          className="btn btn-ghost"
+          className="btn btn-ghost tv-focusable"
           disabled={checking}
           onClick={runCheck}
           style={{ opacity: checking ? 0.6 : 1 }}
@@ -633,7 +624,7 @@ function VersionSection() {
 
         {result && !result.error && !result.hasUpdate && (
           <span style={{ fontSize: 13, color: "#48c774", fontWeight: 500 }}>
-            ✓ You're up to date
+            ✓ You&apos;re up to date
           </span>
         )}
 
@@ -642,35 +633,14 @@ function VersionSection() {
             ✕ {result.error}
           </span>
         )}
-      </div>
 
-
-
-      {/* Auto-check toggle */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          flexWrap: "wrap",
-        }}
-      >
-        <Toggle
-          value={autoCheck}
-          onChange={toggleAuto}
-          title={autoCheck ? "Disable auto-check" : "Enable auto-check"}
-        />
-        <div>
-          <div style={{ fontSize: 14, fontWeight: 500, color: "var(--text)" }}>
-            Check for updates on startup
-          </div>
-          <div style={{ fontSize: 12, color: "var(--text3)", marginTop: 2 }}>
-            Shows a notification banner if a new version is available. Turned on
-            by default.
-          </div>
-        </div>
-        {autoSaved && (
-          <span style={{ fontSize: 12, color: "#48c774" }}>✓ Saved</span>
+        {result?.hasUpdate && !showDialog && (
+          <button
+            className="btn btn-primary tv-focusable"
+            onClick={() => setShowDialog(true)}
+          >
+            View Update ({result.latest})
+          </button>
         )}
       </div>
     </div>

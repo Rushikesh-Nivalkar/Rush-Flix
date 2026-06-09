@@ -1,5 +1,9 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { readFileSync } from "fs";
+const pkg = JSON.parse(
+  readFileSync(new URL("./package.json", import.meta.url), "utf-8")
+);
 
 // In-memory token relay — phone submits, TV polls and picks up.
 // Token expires after 5 min automatically.
@@ -45,6 +49,9 @@ function tokenRelayPlugin() {
 export default defineConfig({
   plugins: [react(), tokenRelayPlugin()],
   base: "./",
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
   build: {
     rollupOptions: {
       output: {

@@ -4,9 +4,9 @@
 [![Issues](https://img.shields.io/github/issues/Rushikesh-Nivalkar/Rush-Flix?style=for-the-badge)](https://github.com/Rushikesh-Nivalkar/Rush-Flix/issues)
 [![License](https://img.shields.io/github/license/Rushikesh-Nivalkar/Rush-Flix?style=for-the-badge)](LICENSE)
 
-**Private Netflix-style streaming app built for Google TV, Chromecast, and Android TV.**
+**Private Netflix-style streaming app built for Android TV, Google TV, Chromecast with Google TV, and Android phones.**
 
-Rush Flix is a self-hosted, TV-first web app that aggregates metadata from TMDB and streams content through third-party embed players. It runs as a React/Vite web app and ships as a Capacitor Android APK for sideloading onto TV devices.
+Rush Flix is a self-hosted streaming app that aggregates metadata from TMDB and plays through third-party embed players. It ships as a single Capacitor Android APK — the same APK sideloads onto Android TV, Google TV, Chromecast with Google TV, and Android phones.
 
 > **For personal/educational use only.** Rush Flix does not host, store, or distribute any video content. All playback is handled by third-party embed players outside the control of this project.
 
@@ -69,6 +69,13 @@ Rush Flix is a self-hosted, TV-first web app that aggregates metadata from TMDB 
 - QR key pairing — scan from phone to set TMDB, Wyzie, or SubDL API keys on TV
 - Genre rows: dynamic TMDB genre dropdown, Left/Right D-pad to cycle genres
 
+### Phone Experience
+- Same APK as Android TV — download once, install on TV or phone
+- App launches in landscape orientation (locked) — portrait mode disabled; the UI is designed for landscape video browsing
+- Status bar hidden automatically for full-screen immersive viewing
+- Touch to browse and scroll — tap cards, buttons, and menus as in any Android app
+- Android back button pops the navigation stack (goes back one screen at a time); pressing back on the Home screen exits the app cleanly
+
 ### Settings & Customisation
 - 5-tab sidebar: Playback / Subtitles / Interface / Library / Data — all panels D-pad navigable
 - TMDB API key management (your own key, free from TMDB)
@@ -84,6 +91,7 @@ Rush Flix is a self-hosted, TV-first web app that aggregates metadata from TMDB 
 - Start page selection (Home, Library, etc.)
 - Rating country selection
 - Home page row ordering and visibility — toggle and reorder rows
+- In-app update checker — checks GitHub Releases on startup (6-hour cooldown) and on demand from Settings; shows a banner on the Home page when a newer version is available; one-tap APK download and install without leaving the app
 
 ### Data & Sync
 - All data stored locally in `localStorage` — no account, no cloud required
@@ -142,6 +150,26 @@ Switch sources from the picker bar above the player. If one source fails for a s
 
 ---
 
+## What's New — v2.0.0
+
+### Android Phone Support
+- The same APK now installs and runs on Android phones — no separate phone build required
+- App locks to landscape orientation automatically on phones; portrait mode is disabled (the UI is designed for landscape)
+- Status bar hidden for full-screen immersive viewing on phones
+- Android back button pops the navigation stack; pressing back on the Home screen exits the app cleanly
+
+### In-App Update Checker
+- Checks GitHub Releases automatically on startup — once per 6 hours, fully background (zero impact on video playback)
+- Manual check available from Settings
+- When an update is available: banner appears on the Home page with release notes and a one-tap install button
+- APK downloads and installs directly within the app — no browser or app store required
+
+### Build
+- v2.0.0 (versionCode 3)
+- Minimum Android version: 7.0 (API 24)
+
+---
+
 ## What's New — v1.1.1
 
 ### TV Navigation Overhaul
@@ -182,7 +210,7 @@ Switch sources from the picker bar above the player. If one source fails for a s
 ## Requirements
 
 - A free [TMDB API Read Access Token](https://www.themoviedb.org/settings/api) — needed for metadata and search
-- An Android TV, Google TV, or Chromecast with Google TV device *(for the APK)*
+- An Android TV, Google TV, or Chromecast with Google TV device, or an Android phone running Android 7.0 or later *(for the APK)*
 - Node.js ≥ 18
 
 ---
@@ -191,11 +219,21 @@ Switch sources from the picker bar above the player. If one source fails for a s
 
 ### Sideloading the APK onto a TV (Recommended)
 
-1. Download **`rush-flix-v1.1.1.apk`** from the [Releases page](https://github.com/Rushikesh-Nivalkar/Rush-Flix/releases)
+1. Download **`Rush-Flix_V2.0.0.apk`** from the [Releases page](https://github.com/Rushikesh-Nivalkar/Rush-Flix/releases)
 2. Enable **Unknown Sources** / **Install Unknown Apps** on your TV device
 3. Transfer the APK to your TV via USB drive, local network share, or a file manager app — then open and install it
 4. Launch **Rush Flix** from the TV apps list
 5. On first launch, enter your TMDB Read Access Token when prompted
+
+### Sideloading the APK onto an Android Phone
+
+1. Download **`Rush-Flix_V2.0.0.apk`** from the [Releases page](https://github.com/Rushikesh-Nivalkar/Rush-Flix/releases)
+2. On your phone, go to **Settings → Security** (or **Settings → Apps → Special app access**) and enable **Install unknown apps** for your browser or file manager
+3. Open the downloaded APK on your phone and tap **Install**
+4. Launch **Rush Flix** from your app drawer
+5. On first launch, enter your TMDB Read Access Token when prompted — or tap Skip to add it later in Settings
+
+> The app opens in landscape orientation automatically. This is by design — the browsing UI is landscape-optimised. Portrait mode is disabled.
 
 ### Running as a Web App on Local Network
 

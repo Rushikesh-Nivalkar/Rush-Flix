@@ -16,6 +16,8 @@ import {
   getProfiles, getActiveProfileId, setActiveProfileId, getActiveProfile,
 } from "./utils/profiles";
 import TVPlayer from "./components/TVPlayer";
+import { fetchLatestRelease, isNewerVersion, APP_VERSION } from "./utils/updateChecker";
+import { App as CapApp } from "@capacitor/app";
 
 const HomePage = lazy(() => import("./pages/HomePage"));
 const MoviePage = lazy(() => import("./pages/MoviePage"));
@@ -213,18 +215,47 @@ export default function App() {
     document.body.classList.toggle("no-anim", noAnim);
   }, []);
 
-  // ── Version update checker ────────────────────────────────────────────────
-  const [updateAvailable, setUpdateAvailable] = useState(false);
+  // ── Startup update check (fire-and-forget, no setState, never blocks) ────────
+  // Writes to localStorage only — no App re-render, safe during playback.
   useEffect(() => {
-    fetch("/version.json", { cache: "no-store" })
-      .then((r) => r.json())
-      .then(({ version }) => {
-        const seen = storage.get("appVersion");
-        if (seen && seen !== version) setUpdateAvailable(true);
-        if (!seen) storage.set("appVersion", version);
-      })
-      .catch(() => {});
+    const RECHECK_MS = 6 * 60 * 60 * 1000; // 6 hours between checks
+    const lastCheck = localStorage.getItem("rushflix_updateCheckTime");
+    if (lastCheck && Date.now() - Number(lastCheck) < RECHECK_MS) return;
+
+    (async () => {
+      try {
+        localStorage.setItem("rushflix_updateCheckTime", String(Date.now()));
+        const release = await fetchLatestRelease();
+        if (isNewerVersion(release.latest, APP_VERSION)) {
+          localStorage.setItem("rushflix_pendingUpdate", JSON.stringify(release));
+          window.dispatchEvent(
+            new CustomEvent("rushflix:update-available", { detail: release })
+          );
+        } else {
+          localStorage.removeItem("rushflix_pendingUpdate");
+        }
+      } catch {
+        // Never block app startup — silently ignore all errors
+      }
+    })();
   }, []);
+
+  // ── Back button handler (Android phones + TV remote) ─────────────────────
+  const navStackRef = useRef(navStack);
+  useEffect(() => { navStackRef.current = navStack; }, [navStack]);
+  useEffect(() => {
+    let listener;
+    (async () => {
+      listener = await CapApp.addListener("backButton", () => {
+        if (navStackRef.current.length > 0) {
+          navigateBack();
+        } else {
+          CapApp.exitApp();
+        }
+      });
+    })();
+    return () => { listener?.remove(); };
+  }, [navigateBack]);
 
   // ── Trending fetch (cached 30 min) ────────────────────────────────────────
   const fetchTrending = useCallback(() => {
@@ -696,23 +727,6 @@ export default function App() {
 
         {toast && <div className="toast">{toast}</div>}
 
-        {updateAvailable && (
-          <div className="update-banner">
-            New version available — reload to apply.
-            <button
-              className="update-banner-dismiss"
-              onClick={() => {
-                fetch("/version.json", { cache: "no-store" })
-                  .then((r) => r.json())
-                  .then(({ version }) => storage.set("appVersion", version))
-                  .catch(() => {});
-                setUpdateAvailable(false);
-              }}
-            >
-              Dismiss
-            </button>
-          </div>
-        )}
       </div>
     </ErrorBoundary>
   );

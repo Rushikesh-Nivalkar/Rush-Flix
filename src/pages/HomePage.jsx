@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import MediaCard from "../components/MediaCard";
+import UpdateDialog from "../components/UpdateDialog";
 import { PlayIcon, StarIcon, FilmIcon } from "../components/Icons";
 import { imgUrl, tmdbFetch } from "../utils/api";
 import { useRatings, getRatingForItem } from "../utils/useRatings";
@@ -43,6 +44,34 @@ export default function HomePage({
 
   const [layout] = useState(() => loadHomeLayout());
   const { order: rowOrder, visible: rowVisible } = layout;
+
+  // ── Update banner state ───────────────────────────────────────────────────
+  const [updateInfo, setUpdateInfo] = useState(() => {
+    try {
+      const raw = localStorage.getItem("rushflix_pendingUpdate");
+      if (!raw) return null;
+      const info = JSON.parse(raw);
+      const dismissed = localStorage.getItem("rushflix_dismissedUpdateVersion");
+      return dismissed === info.latest ? null : info;
+    } catch { return null; }
+  });
+  const [showUpdateDialog, setShowUpdateDialog] = useState(false);
+
+  useEffect(() => {
+    const handler = (e) => {
+      const dismissed = localStorage.getItem("rushflix_dismissedUpdateVersion");
+      if (dismissed !== e.detail.latest) setUpdateInfo(e.detail);
+    };
+    window.addEventListener("rushflix:update-available", handler);
+    return () => window.removeEventListener("rushflix:update-available", handler);
+  }, []);
+
+  const dismissUpdateBanner = () => {
+    if (updateInfo?.latest) {
+      localStorage.setItem("rushflix_dismissedUpdateVersion", updateInfo.latest);
+    }
+    setUpdateInfo(null);
+  };
 
   // ── Rating helpers ────────────────────────────────────────────────────────
   const allItems = useMemo(() => [
@@ -380,6 +409,41 @@ export default function HomePage({
 
   return (
     <div className="fade-in">
+      {/* ── Update banner ── */}
+      {updateInfo && !showUpdateDialog && (
+        <div style={{
+          background: "rgba(229,9,20,0.12)", border: "1px solid rgba(229,9,20,0.35)",
+          borderRadius: 8, padding: "10px 16px", marginBottom: 12,
+          display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
+        }}>
+          <span style={{ fontSize: 14, color: "var(--text)", fontWeight: 500, flex: 1 }}>
+            Rush Flix {updateInfo.latest} available
+          </span>
+          <button
+            className="btn tv-focusable"
+            style={{ background: "var(--red)", color: "#fff", border: "none", fontWeight: 600, fontSize: 13, padding: "6px 16px" }}
+            onClick={() => setShowUpdateDialog(true)}
+          >
+            Install Now
+          </button>
+          <button
+            className="btn btn-ghost tv-focusable"
+            style={{ fontSize: 13, padding: "6px 12px" }}
+            onClick={dismissUpdateBanner}
+          >
+            Not Now
+          </button>
+        </div>
+      )}
+      {showUpdateDialog && updateInfo && (
+        <UpdateDialog
+          latestVersion={updateInfo.latest}
+          apkUrl={updateInfo.apkUrl}
+          releaseNotes={updateInfo.releaseNotes}
+          onDismiss={() => setShowUpdateDialog(false)}
+        />
+      )}
+
       {/* ── Offline ── */}
       {offline && (
         <div className="tv-offline">
