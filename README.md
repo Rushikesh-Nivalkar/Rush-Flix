@@ -111,7 +111,7 @@ Rush Flix is a self-hosted streaming app that aggregates metadata from TMDB and 
 
 ### Content Limitations
 - **Cannot download content** — no offline viewing, no download queue
-- **Cannot stream DRM-protected content** — Netflix Originals, Amazon Exclusives, Disney+ exclusives, and anything requiring Widevine DRM will not work
+- **Playback not guaranteed for streaming exclusives** — Rush Flix shows listings for all TMDB titles (including Netflix Originals, Amazon Exclusives, Disney+ titles), but the embed players (Videasy, VidSrc, 2Embed) may not have working streams for content that platforms exclusively distribute under DRM; try all three sources before concluding a title is unavailable
 - **Cannot guarantee a working source** — embed players go down, get blocked, or change URLs; if all three sources fail for a title there is no further fallback beyond manually switching
 - **Cannot bypass regional restrictions** — if an embed player geo-blocks content in your country, Rush Flix cannot work around it; a VPN at the OS or router level is needed
 - **Cannot control video quality** — resolution, bitrate, and codec are entirely up to the third-party embed player; Rush Flix cannot force 4K or HDR

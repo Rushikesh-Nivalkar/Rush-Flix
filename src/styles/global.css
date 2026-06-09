@@ -474,7 +474,7 @@ body.compact-mode .card-year {
     font-size: 10px;
 }
 body.compact-mode .scroll-row .card {
-    width: 108px;
+    width: 216px;
 }
 
 body.no-anim *,
@@ -635,7 +635,7 @@ body.no-anim *::after {
 
 .scroll-row .card {
     flex-shrink: 0;
-    width: 150px;
+    width: 300px;
 }
 
 /* ── Search Modal ───────────────────────────────────────────────────────── */

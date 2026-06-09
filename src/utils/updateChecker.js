@@ -1,7 +1,7 @@
 /* global __APP_VERSION__ */
 
 export const APP_VERSION =
-  typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "2.0.0";
+  typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "2.0.1";
 
 const GITHUB_RELEASES_URL =
   "https://api.github.com/repos/Rushikesh-Nivalkar/Rush-Flix/releases/latest";

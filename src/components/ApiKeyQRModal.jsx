@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { QRCodeSVG } from "qrcode.react";
 
 export default function ApiKeyQRModal({ setupType, label, onSave, onClose }) {
@@ -26,14 +27,15 @@ export default function ApiKeyQRModal({ setupType, label, onSave, onClose }) {
     ? (deviceIp ? `http://${deviceIp}:8080/?setup=${setupType}` : null)
     : (isLan ? `http://${window.location.host}/?setup=${setupType}` : null);
 
-  // Flush stale token on mount, then poll every 2s
+  // Await stale token consume before polling — prevents prior session token auto-closing modal
   useEffect(() => {
     if (!phoneUrl) return;
-    // Consume any stale token from a prior session
-    fetch(`${apiBase}/api/token-status`).catch(() => {});
-
+    let cancelled = false;
     const idRef = { current: null };
-    const timeout = setTimeout(() => {
+
+    const run = async () => {
+      try { await fetch(`${apiBase}/api/token-status`); } catch {}
+      if (cancelled) return;
       const poll = async () => {
         try {
           const res = await fetch(`${apiBase}/api/token-status`);
@@ -45,15 +47,16 @@ export default function ApiKeyQRModal({ setupType, label, onSave, onClose }) {
         } catch {}
       };
       idRef.current = setInterval(poll, 2000);
-    }, 1000);
+    };
+    run();
 
     return () => {
-      clearTimeout(timeout);
+      cancelled = true;
       if (idRef.current) clearInterval(idRef.current);
     };
   }, [phoneUrl, apiBase]);
 
-  return (
+  return createPortal(
     <div
       style={{
         position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)",
@@ -106,6 +109,7 @@ export default function ApiKeyQRModal({ setupType, label, onSave, onClose }) {
           Close
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

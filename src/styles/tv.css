@@ -7,8 +7,8 @@
 :root {
   --tv-navbar-h: 3.75vw;    /* 72px @ 1920px */
   --tv-safe: 2.5vw;          /* 48px @ 1920px — overscan-safe margin */
-  --tv-card-w: 7.29vw;       /* 140px @ 1920px */
-  --tv-card-h: 10.94vw;      /* 210px @ 1920px */
+  --tv-card-w: 14.58vw;      /* 280px @ 1920px */
+  --tv-card-h: 21.88vw;      /* 420px @ 1920px */
   --tv-focus-color: #fff;
   --tv-focus-ring: 0 0 0 0.22rem var(--tv-focus-color), 0 0 0 0.33rem rgba(229,9,20,0.8);
 }

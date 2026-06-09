@@ -273,30 +273,51 @@ export default function HomePage({
       <div key={key} className="section">
         <div className="section-title" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <span>{title}</span>
-          <button
-            tabIndex={0}
-            data-focusable
-            onKeyDown={(e) => {
-              if (e.key === "ArrowLeft") { e.preventDefault(); cyclePrev(e); }
-              else if (e.key === "ArrowRight") { e.preventDefault(); cycleNext(e); }
-            }}
+          <div
             style={{
-              background: "var(--surface)",
-              color: "var(--text)",
-              border: "1px solid var(--border)",
-              borderRadius: 6,
-              padding: "4px 14px",
-              fontSize: 13,
-              cursor: "pointer",
               display: "flex",
               alignItems: "center",
-              gap: 10,
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              borderRadius: 6,
+              fontSize: 13,
+              overflow: "hidden",
             }}
           >
-            <span style={{ opacity: 0.5 }}>‹</span>
-            <span style={{ minWidth: "8rem", textAlign: "center" }}>{currentName}</span>
-            <span style={{ opacity: 0.5 }}>›</span>
-          </button>
+            <button
+              tabIndex={-1}
+              onClick={cyclePrev}
+              style={{
+                background: "none", border: "none", color: "var(--text)",
+                padding: "4px 12px", cursor: "pointer", opacity: 0.5,
+                fontSize: 15, lineHeight: 1,
+              }}
+              aria-label="Previous genre"
+            >‹</button>
+            <button
+              tabIndex={0}
+              data-focusable
+              onKeyDown={(e) => {
+                if (e.key === "ArrowLeft") { e.preventDefault(); cyclePrev(e); }
+                else if (e.key === "ArrowRight") { e.preventDefault(); cycleNext(e); }
+              }}
+              style={{
+                background: "none", border: "none", color: "var(--text)",
+                padding: "4px 0", cursor: "default",
+                minWidth: "8rem", textAlign: "center", fontSize: 13,
+              }}
+            >{currentName}</button>
+            <button
+              tabIndex={-1}
+              onClick={cycleNext}
+              style={{
+                background: "none", border: "none", color: "var(--text)",
+                padding: "4px 12px", cursor: "pointer", opacity: 0.5,
+                fontSize: 15, lineHeight: 1,
+              }}
+              aria-label="Next genre"
+            >›</button>
+          </div>
         </div>
         {items && items.length > 0 ? (
           <div className="cards-row">
