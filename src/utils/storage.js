@@ -92,6 +92,7 @@ export const STORAGE_KEYS = {
   CUSTOM_SOURCES: "customSources",
   PLAYER_SOURCE_OVERRIDES: "playerSourceOverrides",
   SERIES_NEXT: "seriesNext",
+  LIVE_TV_COUNTRY: "liveTvCountry",
   // Multi-source content rows
   SHARED_LIBRARY: "sharedLibrary",
   PERSONAL_MEDIA: "personalMedia",

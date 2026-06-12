@@ -210,3 +210,22 @@ export const ExternalLinkIcon = ({ size = 13 }) => (
   </svg>
 );
 
+export const LiveIcon = ({ size = 24, ...props }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <rect x="2" y="7" width="20" height="14" rx="2" />
+    <path d="M8 7L12 2l4 5" />
+    <circle cx="12" cy="14" r="2" fill="currentColor" stroke="none" />
+    <path d="M9 11a4 4 0 0 0 0 6" />
+    <path d="M15 11a4 4 0 0 1 0 6" />
+  </svg>
+);

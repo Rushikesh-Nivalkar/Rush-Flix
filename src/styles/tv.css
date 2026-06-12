@@ -11,6 +11,10 @@
   --tv-card-h: 21.88vw;      /* 420px @ 1920px */
   --tv-focus-color: #fff;
   --tv-focus-ring: 0 0 0 0.22rem var(--tv-focus-color), 0 0 0 0.33rem rgba(229,9,20,0.8);
+  /* On TV: env(safe-area-inset-top) is 0 so this equals --tv-safe.
+     On phone with Android edge-to-edge: takes the larger of the two so the
+     navbar clears the status bar regardless of device/Android version. */
+  --tv-top-offset: max(2.5vw, env(safe-area-inset-top, 0px));
 }
 
 /* Hide mouse cursor on TV — navigated by remote only */
@@ -50,7 +54,7 @@ input:focus,
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: calc(var(--tv-navbar-h) + var(--tv-safe)) var(--tv-safe) var(--tv-safe);
+  padding: calc(var(--tv-navbar-h) + var(--tv-top-offset)) var(--tv-safe) var(--tv-safe);
   scroll-behavior: smooth;
   /* Hide scrollbar on TV */
   scrollbar-width: none;
@@ -67,7 +71,7 @@ input:focus,
 /* ── Top navigation bar ─────────────────────────────────────── */
 .tv-navbar {
   position: fixed;
-  top: var(--tv-safe);
+  top: var(--tv-top-offset);
   left: 0;
   right: 0;
   z-index: 100;
@@ -119,6 +123,11 @@ input:focus,
 
 .tv-navbar-icon svg { width: 1.22rem; height: 1.22rem; }
 .tv-navbar-label { font-size: 0.83rem; }
+
+.tv-navbar-btn--icon-only {
+  padding: 0.56rem 0.75rem;
+  gap: 0;
+}
 
 .tv-navbar-profile {
   display: flex;
@@ -567,6 +576,24 @@ input:focus,
 .search-input:focus {
   border-color: var(--tv-focus-color);
   outline: none;
+}
+
+/* ── Live TV inline search bar ───────────────────────────────── */
+.live-tv-search-bar {
+  padding: 0.75rem 1rem 0.5rem;
+  flex-shrink: 0;
+}
+
+.live-tv-search-bar .search-input-wrap {
+  width: 100%;
+  position: relative;
+}
+
+.live-tv-search-bar .search-input {
+  font-size: 1rem;
+  padding: 0.55rem 1rem;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* ── Reduced motion ──────────────────────────────────────────── */
@@ -1951,4 +1978,276 @@ input:focus,
   letter-spacing: normal;
   text-transform: none;
   color: var(--text);
+}
+
+/* ── Live TV Page ──────────────────────────────────────────────────────────── */
+.live-tv-layout {
+  display: flex;
+  height: calc(100vh - var(--tv-navbar-h));
+  overflow: hidden;
+}
+
+.live-tv-sidebar {
+  width: 22%;
+  min-width: 180px;
+  max-width: 280px;
+  padding: var(--tv-safe) 0 var(--tv-safe) var(--tv-safe);
+  overflow-y: auto;
+  border-right: 1px solid rgba(255,255,255,0.07);
+  flex-shrink: 0;
+  scrollbar-width: none;
+}
+.live-tv-sidebar::-webkit-scrollbar { display: none; }
+
+.live-tv-sidebar-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 0 1rem 0.75rem;
+}
+
+.live-tv-status {
+  font-size: 0.85rem;
+  color: var(--text3);
+  padding: 1rem;
+}
+.live-tv-status.error { color: var(--red); }
+
+.live-tv-group-btn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  color: var(--text2);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.live-tv-group-btn:hover,
+.live-tv-group-btn:focus {
+  background: rgba(255,255,255,0.08);
+  color: var(--text);
+  outline: none;
+}
+.live-tv-group-btn.active {
+  background: color-mix(in srgb, var(--red) 18%, transparent);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.live-tv-panel {
+  flex: 1;
+  padding: var(--tv-safe);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.live-tv-panel::-webkit-scrollbar { display: none; }
+
+.live-channel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+  padding: 8px 0 24px;
+}
+
+.channel-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface);
+  border-radius: 10px;
+  border: 2px solid transparent;
+  padding: 12px 10px 10px;
+  cursor: pointer;
+  transition: border-color 0.12s, transform 0.12s, background 0.12s;
+  gap: 6px;
+  min-height: 140px;
+}
+.channel-card:focus {
+  outline: none;
+  border-color: var(--tv-focus-color);
+  transform: scale(1.06);
+  box-shadow: var(--tv-focus-ring);
+  background: color-mix(in srgb, var(--red) 10%, var(--surface));
+}
+
+.channel-card-logo-wrap {
+  width: 100%;
+  height: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.channel-logo {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.channel-logo-placeholder {
+  font-size: 2.2rem;
+  line-height: 1;
+}
+.channel-name {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text);
+  text-align: center;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 2px;
+}
+.channel-live-badge {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--red);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* ── Live Player ───────────────────────────────────────────────────────────── */
+.live-player-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.live-player-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.live-player-spinner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.4);
+  pointer-events: none;
+}
+.live-spinner-ring {
+  width: 56px;
+  height: 56px;
+  border: 4px solid rgba(255,255,255,0.15);
+  border-top-color: var(--red);
+  border-radius: 50%;
+  animation: live-spin 0.8s linear infinite;
+}
+@keyframes live-spin { to { transform: rotate(360deg); } }
+
+.live-player-error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--text);
+  font-size: 1.1rem;
+}
+.live-player-error-sub {
+  font-size: 0.85rem;
+  color: var(--text3);
+}
+
+.live-player-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+.live-player-overlay.hidden { opacity: 0; }
+
+.live-overlay-top {
+  position: absolute;
+  top: var(--tv-safe);
+  left: var(--tv-safe);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: linear-gradient(135deg, rgba(0,0,0,0.85), rgba(0,0,0,0.4));
+  padding: 14px 20px;
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+  max-width: 420px;
+}
+.live-overlay-logo {
+  height: 48px;
+  width: auto;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+.live-overlay-name {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.2;
+}
+.live-overlay-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--red);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+.live-overlay-paused {
+  font-size: 0.85rem;
+  color: rgba(255,255,255,0.7);
+  margin-left: 12px;
+  align-self: center;
+}
+
+.live-overlay-bottom {
+  position: absolute;
+  bottom: var(--tv-safe);
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 var(--tv-safe);
+  pointer-events: none;
+}
+.live-overlay-adjacent {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: rgba(0,0,0,0.65);
+  padding: 10px 16px;
+  border-radius: 10px;
+  max-width: 35%;
+  backdrop-filter: blur(6px);
+}
+.live-overlay-adjacent.next { text-align: right; }
+.live-overlay-adj-label {
+  font-size: 0.65rem;
+  color: rgba(255,255,255,0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.live-overlay-adj-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: rgba(255,255,255,0.85);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

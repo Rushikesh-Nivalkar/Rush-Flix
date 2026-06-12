@@ -19,13 +19,15 @@ import {
 } from "../utils/homeLayout";
 import { formatBytes } from "../utils/storage";
 import ApiKeyQRModal from "../components/ApiKeyQRModal";
+const COUNTRIES_API = "https://iptv-org.github.io/api/countries.json";
 
 // ── Custom Select ─────────────────────────────────────────────────────────────
 function SettingsSelect({ value, onChange, options, style }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
-  const selectedLabel =
-    options.find((o) => String(o.value) === String(value))?.label ?? value;
+  const selectedOption = options.find((o) => String(o.value) === String(value));
+  const selectedLabel = selectedOption?.label ?? value;
+  const selectedImage = selectedOption?.image ?? null;
 
   useEffect(() => {
     const handler = (e) => {
@@ -87,7 +89,11 @@ function SettingsSelect({ value, onChange, options, style }) {
           if (!open) e.currentTarget.style.background = "var(--surface2)";
         }}
       >
-        <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 8, overflow: "hidden", textOverflow: "ellipsis" }}>
+          {selectedImage && (
+            <img src={selectedImage} alt="" width={20} height={15}
+              style={{ flexShrink: 0, borderRadius: 2, display: "block" }} />
+          )}
           {selectedLabel}
         </span>
         <svg
@@ -170,6 +176,10 @@ function SettingsSelect({ value, onChange, options, style }) {
                   if (!active) e.currentTarget.style.background = "transparent";
                 }}
               >
+                {o.image && (
+                  <img src={o.image} alt="" width={20} height={15}
+                    style={{ flexShrink: 0, borderRadius: 2, display: "inline-block", verticalAlign: "middle", marginRight: 8 }} />
+                )}
                 {o.label}
               </div>
             );
@@ -1512,6 +1522,7 @@ function StartPageSection() {
             { value: "home", label: "🏠  Home" },
             { value: "history", label: "🕐  Library / History" },
             { value: "downloads", label: "⬇  Downloads" },
+            { value: "live",      label: "📺  Live TV" },
           ]}
         />
         <button className="btn btn-primary" onClick={handleSave}>
@@ -2029,6 +2040,72 @@ function Divider() {
   );
 }
 
+// ── Live TV Settings Section ───────────────────────────────────────────────────
+function LiveTvSettingsSection() {
+  const [selectedCountry, setSelectedCountry] = useState(
+    () => storage.get(STORAGE_KEYS.LIVE_TV_COUNTRY) || ""
+  );
+  const [countries, setCountries] = useState([]);
+  const [loadingCountries, setLoadingCountries] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    setLoadingCountries(true);
+    fetch(COUNTRIES_API)
+      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then((data) => setCountries(data))
+      .catch(() => setCountries([]))
+      .finally(() => setLoadingCountries(false));
+  }, []);
+
+  const handleSave = () => {
+    storage.set(STORAGE_KEYS.LIVE_TV_COUNTRY, selectedCountry);
+    window.dispatchEvent(new CustomEvent("liveCountryChanged", { detail: selectedCountry }));
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  const handleClear = () => {
+    setSelectedCountry("");
+    storage.remove(STORAGE_KEYS.LIVE_TV_COUNTRY);
+    window.dispatchEvent(new CustomEvent("liveCountryChanged", { detail: "" }));
+  };
+
+  const options = [
+    { value: "", label: "— No country filter —" },
+    ...countries.map((c) => ({
+      value: c.code,
+      label: c.name,
+      image: `https://flagcdn.com/20x15/${c.code.toLowerCase()}.png`,
+    })),
+  ];
+
+  return (
+    <div style={{ marginBottom: 40 }}>
+      <div className="settings-section-title">Country Filter</div>
+      <div style={{ fontSize: 13, color: "var(--text3)", marginBottom: 16, lineHeight: 1.6 }}>
+        Select a country to add a dedicated tab in the navbar showing only channels from that country, grouped by genre. Leave blank to hide the tab.
+      </div>
+      {loadingCountries ? (
+        <div style={{ color: "var(--text3)", fontSize: 13 }}>Loading channel list…</div>
+      ) : (
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <SettingsSelect
+            value={selectedCountry}
+            onChange={(v) => setSelectedCountry(v)}
+            options={options}
+          />
+          <button className="btn btn-primary" onClick={handleSave}>Save</button>
+          {selectedCountry && (
+            <button className="btn btn-ghost" onClick={handleClear}>Clear</button>
+          )}
+          {saved && <span style={{ fontSize: 13, color: "#48c774" }}>✓ Saved</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Search & Nav Bar ──────────────────────────────────────────────────────────
 const SUPPORTS_HIGHLIGHT =
   typeof CSS !== "undefined" && typeof CSS.highlights !== "undefined";
@@ -2196,6 +2273,12 @@ const SECTION_NAV = [
       "factory",
     ],
   },
+  {
+    id: "live-tv",
+    label: "Live TV",
+    icon: "📺",
+    keywords: ["live", "tv", "iptv", "country", "channel", "filter", "stream"],
+  },
 ];
 
 const TV_TABS = [
@@ -2204,6 +2287,7 @@ const TV_TABS = [
   { id: "interface", label: "Interface", icon: "✦",  sections: ["interface"] },
   { id: "library",   label: "Library",   icon: "📚", sections: ["library"] },
   { id: "data",      label: "Data",      icon: "🗄", sections: ["backup", "storage"] },
+  { id: "live-tv",   label: "Live TV",   icon: "📺", sections: ["live-tv"] },
 ];
 
 const TV_TAB_OF = {
@@ -2212,6 +2296,7 @@ const TV_TAB_OF = {
   interface: "interface",
   library: "library",
   backup: "data", storage: "data",
+  "live-tv": "live-tv",
 };
 
 function sectionToTab(sectionId) {
@@ -2862,6 +2947,7 @@ export default function SettingsPage({
   const secLibrary = useRef(null);
   const secBackup = useRef(null);
   const secStorage = useRef(null);
+  const secLiveTv = useRef(null);
 
   const sectionRefs = {
     updates: secUpdates,
@@ -2872,6 +2958,7 @@ export default function SettingsPage({
     library: secLibrary,
     backup: secBackup,
     storage: secStorage,
+    "live-tv": secLiveTv,
   };
 
   // Ref for find-in-page search scope
@@ -3773,6 +3860,18 @@ export default function SettingsPage({
             </div>
           </div>
         </div>
+
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {/* GROUP: LIVE TV                                                      */}
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        <div ref={secLiveTv} style={{ display: activeTab !== "live-tv" ? "none" : undefined }}>
+          <SectionGroupHeader
+            title="Live TV"
+            subtitle="Country-filtered tab in the navigation bar"
+          />
+          <LiveTvSettingsSection />
+        </div>
+
       </div>
       </div>
     </>

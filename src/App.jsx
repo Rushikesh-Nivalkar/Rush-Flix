@@ -25,6 +25,7 @@ const TVPage = lazy(() => import("./pages/TVPage"));
 const LibraryPage = lazy(() => import("./pages/LibraryPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const SourcesPage = lazy(() => import("./pages/SourcesPage"));
+const LiveTVPage = lazy(() => import("./pages/LiveTVPage"));
 
 export default function App() {
   // ── Profile state ─────────────────────────────────────────────────────────
@@ -43,6 +44,9 @@ export default function App() {
 
   // ── Navigation ────────────────────────────────────────────────────────────
   const [page, setPage] = useState(() => storage.get(STORAGE_KEYS.START_PAGE) || "home");
+  const [liveCountry, setLiveCountry] = useState(
+    () => storage.get(STORAGE_KEYS.LIVE_TV_COUNTRY) || ""
+  );
   const [selected, setSelected] = useState(null);
   const [navStack, setNavStack] = useState([]);
   const [showSearch, setShowSearch] = useState(false);
@@ -73,6 +77,12 @@ export default function App() {
 
   // TV D-pad navigation — back button maps to navigateBack
   useTVNavigation({ onBack: navigateBack });
+
+  useEffect(() => {
+    const handler = (e) => setLiveCountry(e.detail || "");
+    window.addEventListener("liveCountryChanged", handler);
+    return () => window.removeEventListener("liveCountryChanged", handler);
+  }, []);
 
   // ── Per-profile data (watchlist, history, progress, watched) ──────────────
   const [saved, setSaved] = useState({});
@@ -585,6 +595,7 @@ export default function App() {
           onNavigate={navigate}
           onSearch={() => setShowSearch(true)}
           activeProfile={activeProfile}
+          liveCountry={liveCountry}
         />
 
         <div className="tv-main main lrud-container">
@@ -700,6 +711,12 @@ export default function App() {
                 activeProfile={activeProfile}
                 onRefreshPublicDomain={fetchTrending}
               />
+            )}
+            {page === "live" && (
+              <LiveTVPage offline={offline} />
+            )}
+            {page === "live-country" && (
+              <LiveTVPage offline={offline} countryFilter={liveCountry} />
             )}
             {page === "player" && selected && (
               <TVPlayer
