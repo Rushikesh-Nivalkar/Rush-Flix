@@ -57,11 +57,19 @@ Rush Flix is a self-hosted streaming app that aggregates metadata from TMDB and 
 - Subtitle size and vertical position settings (top/bottom)
 - Toggle on/off mid-playback
 
+### Live TV
+- M3U/M3U8 playlist support — add any IPTV playlist URL in Sources
+- Channel grid with logos, group categories, and country filter
+- Full-screen live player with channel overlay (show/hide with up/down D-pad)
+- Prev/Next channel buttons — jump channels without leaving the player
+- Geo-block detection — shows the channel's country and a VPN hint when a stream is geo-restricted
+- Country filter — browse channels filtered by country from the nav bar
+
 ### TV Experience
 - Custom row-based D-pad navigation (tvNav.js) — replaced BBC lrud-spatial
 - TV-optimised full-screen layout — no mouse or touchscreen required
 - Android TV launcher banner with Rush Flix branding
-- Back button returns to previous screen without exiting the app
+- Back button works everywhere — returns to previous screen from any page or player without exiting the app
 - Media keys supported: Play/Pause, Fast Forward, Rewind
 - Focus management — cursor lands in the right place on every page transition
 - Source picker on the detail page — choose Videasy/VidSrc/2Embed before playback starts
@@ -125,6 +133,13 @@ When using Videasy, VidSrc, or 2Embed, playback runs inside a cross-origin ifram
 - **Autoplay is best-effort** — Rush Flix injects a script to trigger autoplay, but some embed players have their own interaction gates that may require one manual click on first load
 - **Progress tracking requires script injection** — if an embed player blocks the injected script via strict CSP headers, progress will not be saved for that session
 
+### Live TV Limitations
+- **No EPG / program guide** — no channel schedule or now-playing info
+- **No recording** — cannot record or time-shift live streams
+- **Geo-blocking** — many IPTV channels are region-locked; a VPN at the OS or router level is required to access them (Rush Flix shows the blocked country as a hint)
+- **Stream quality not controllable** — bitrate and resolution are set by the M3U source
+- **No channel search** — browse by group or country only
+
 ### App Limitations
 - **No cloud sync or accounts** — all data is on-device; uninstalling the app deletes everything
 - **No Chromecast/AirPlay casting** — cannot cast from the app to a second screen
@@ -147,6 +162,37 @@ Rush Flix routes playback through three public embed players using TMDB IDs:
 | [2Embed](https://www.2embed.online) | ✅ | ✅ | Occasionally unstable |
 
 Switch sources from the picker bar above the player. If one source fails for a specific title, try the next.
+
+---
+
+## What's New — v2.3.2
+
+### Back Button Fix (Android TV)
+- Hardware back button on Android TV remotes now correctly closes TV and movie streams — the back event is routed through Capacitor so the JS handler can intercept it before native activity back-stack processing
+- Back button works from any state: inside a live stream, movie, TV episode, or any detail page
+
+### Update Notification Fix
+- Stale "View Update" banner no longer persists after installing the update — the app clears the cached update record on startup if the installed version has caught up
+
+### Build
+- v2.3.2 (versionCode 10)
+
+---
+
+## What's New — v2.1.x
+
+### Live TV
+- M3U/M3U8 playlist support — add IPTV playlist URLs in Sources
+- Full-screen live channel player with D-pad channel overlay
+- Prev/Next channel navigation — jump channels without exiting the player
+- Country filter — browse channels by country from the nav bar
+- Geo-block detection — displays the channel's broadcast country and a VPN hint when a stream fails due to regional restrictions
+
+### Auto-Updater Fix
+- In-app APK download and install now works correctly from the Home page update banner
+
+### Build
+- v2.1.1 (versionCode 6)
 
 ---
 
@@ -219,7 +265,7 @@ Switch sources from the picker bar above the player. If one source fails for a s
 
 ### Sideloading the APK onto a TV (Recommended)
 
-1. Download **`Rush-Flix_V2.0.0.apk`** from the [Releases page](https://github.com/Rushikesh-Nivalkar/Rush-Flix/releases)
+1. Download **the latest APK** from the [Releases page](https://github.com/Rushikesh-Nivalkar/Rush-Flix/releases)
 2. Enable **Unknown Sources** / **Install Unknown Apps** on your TV device
 3. Transfer the APK to your TV via USB drive, local network share, or a file manager app — then open and install it
 4. Launch **Rush Flix** from the TV apps list
@@ -227,7 +273,7 @@ Switch sources from the picker bar above the player. If one source fails for a s
 
 ### Sideloading the APK onto an Android Phone
 
-1. Download **`Rush-Flix_V2.0.0.apk`** from the [Releases page](https://github.com/Rushikesh-Nivalkar/Rush-Flix/releases)
+1. Download **the latest APK** from the [Releases page](https://github.com/Rushikesh-Nivalkar/Rush-Flix/releases)
 2. On your phone, go to **Settings → Security** (or **Settings → Apps → Special app access**) and enable **Install unknown apps** for your browser or file manager
 3. Open the downloaded APK on your phone and tap **Install**
 4. Launch **Rush Flix** from your app drawer
@@ -310,17 +356,20 @@ Output: `android/app/build/outputs/apk/release/app-release.apk`
 Rush-Flix/
 ├── src/
 │   ├── components/
-│   │   ├── TVPlayer.jsx          # Main player — video mode + iframe embed mode
+│   │   ├── TVPlayer.jsx          # Movie/TV player — video mode + iframe embed + native bridge
+│   │   ├── LivePlayer.jsx        # Live TV player — HLS stream + prev/next channel + geo-block hint
 │   │   ├── TVNavBar.jsx          # Top navigation bar — non-interactive logo + nav tabs
 │   │   ├── MediaCard.jsx         # Movie/show card with progress bar + D-pad focus
 │   │   ├── RushFlixLogo.jsx      # Animated RF logo (icon mark + wordmark)
 │   │   ├── SearchModal.jsx       # Full-screen search overlay with D-pad trap
 │   │   ├── TrailerModal.jsx      # YouTube trailer overlay
+│   │   ├── UpdateDialog.jsx      # In-app update banner shown on Home when new release detected
 │   │   └── ApiKeyQRModal.jsx     # QR code pairing for TMDB / Wyzie / SubDL API keys
 │   ├── pages/
 │   │   ├── HomePage.jsx          # Flat horizontal card rows — Continue Watching, Trending, etc.
 │   │   ├── MoviePage.jsx         # Movie detail page + player
 │   │   ├── TVPage.jsx            # TV show detail + episode list + player
+│   │   ├── LiveTVPage.jsx        # Live TV channel grid — M3U playlist source + country filter
 │   │   ├── LibraryPage.jsx       # Continue Watching, Watchlist, History
 │   │   ├── SettingsPage.jsx      # All app settings
 │   │   ├── SourcesPage.jsx       # Custom media sources management
@@ -331,6 +380,8 @@ Rush-Flix/
 │   │   ├── tvNav.js              # Custom row-based D-pad navigation (ROW_THRESHOLD=30px)
 │   │   ├── storage.js            # localStorage helpers + STORAGE_KEYS
 │   │   ├── profiles.js           # Profile management
+│   │   ├── m3uParser.js          # M3U/M3U8 playlist parser — name, logo, group, country, language
+│   │   ├── updateChecker.js      # GitHub Releases version check + isNewerVersion helper
 │   │   ├── aniSkip.js            # AniSkip intro/outro timings
 │   │   ├── subtitleFetch.js      # Subtitle URL fetching
 │   │   ├── lanSync.js            # LAN sync push/pull
@@ -342,7 +393,8 @@ Rush-Flix/
 │   └── App.jsx                   # Root component — routing, profiles, state
 ├── android/
 │   └── app/src/main/java/com/rushflix/app/
-│       ├── MainActivity.java     # D-pad injection + iframe script injection
+│       ├── MainActivity.java     # Native WebView overlay player + D-pad injection + back button routing via Capacitor
+│       ├── ApkUpdaterPlugin.java # In-app APK download and install (JavascriptInterface)
 │       └── TokenRelayServer.java # Local token relay for LAN sync
 ├── public/
 │   └── logo.svg                  # App favicon (vector)

@@ -237,6 +237,19 @@ export default function App() {
   // ── Startup update check (fire-and-forget, no setState, never blocks) ────────
   // Writes to localStorage only — no App re-render, safe during playback.
   useEffect(() => {
+    // Always clear stale update if installed version has caught up
+    try {
+      const stored = localStorage.getItem("rushflix_pendingUpdate");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (!isNewerVersion(parsed.latest, APP_VERSION)) {
+          localStorage.removeItem("rushflix_pendingUpdate");
+        }
+      }
+    } catch {
+      localStorage.removeItem("rushflix_pendingUpdate");
+    }
+
     const RECHECK_MS = 6 * 60 * 60 * 1000; // 6 hours between checks
     const lastCheck = localStorage.getItem("rushflix_updateCheckTime");
     if (lastCheck && Date.now() - Number(lastCheck) < RECHECK_MS) return;
