@@ -2235,7 +2235,15 @@ input:focus,
   border-radius: 10px;
   max-width: 35%;
   backdrop-filter: blur(6px);
+  pointer-events: auto;
+  cursor: pointer;
+  border: none;
+  appearance: none;
+  text-align: left;
+  transition: background 0.2s;
 }
+.live-overlay-adjacent:hover,
+.live-overlay-adjacent:focus { background: rgba(255,255,255,0.15); outline: none; }
 .live-overlay-adjacent.next { text-align: right; }
 .live-overlay-adj-label {
   font-size: 0.65rem;
@@ -2250,4 +2258,8 @@ input:focus,
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.live-player-geo-hint {
+  font-size: 0.82rem;
+  color: #f9c74f;
 }

@@ -1,5 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
+const _dn = new Intl.DisplayNames(["en"], { type: "region" });
+const getCountryName = (code) => {
+  const first = code.split(";")[0].trim().toUpperCase();
+  try { return _dn.of(first) || first; } catch { return first; }
+};
+
 export default function LivePlayer({ channel, channels, onClose }) {
   const videoRef  = useRef(null);
   const hideTimer = useRef(null);
@@ -49,6 +55,16 @@ export default function LivePlayer({ channel, channels, onClose }) {
     else          { v.pause();                setPaused(true);  }
     resetOverlay();
   }, [resetOverlay]);
+
+  useEffect(() => {
+    window.__livePlayerActive = true;
+    const handler = () => onClose();
+    window.addEventListener("rushflix:closeLivePlayer", handler);
+    return () => {
+      window.__livePlayerActive = false;
+      window.removeEventListener("rushflix:closeLivePlayer", handler);
+    };
+  }, [onClose]);
 
   // Capture-phase listener overrides tvNav.js
   useEffect(() => {
@@ -111,7 +127,12 @@ export default function LivePlayer({ channel, channels, onClose }) {
       {error && (
         <div className="live-player-error">
           <p>Stream unavailable</p>
-          <p className="live-player-error-sub">← Prev channel  |  Next channel →</p>
+          {(currentChannel.country || currentChannel.name?.includes("[Geo-blocked]")) && (
+            <p className="live-player-geo-hint">
+              🌍 {currentChannel.country ? `Region: ${getCountryName(currentChannel.country)}` : "Geo-blocked"} — try a VPN
+            </p>
+          )}
+          <p className="live-player-error-sub">← Prev  |  Next →</p>
         </div>
       )}
 
@@ -133,14 +154,20 @@ export default function LivePlayer({ channel, channels, onClose }) {
         </div>
 
         <div className="live-overlay-bottom">
-          <div className="live-overlay-adjacent prev">
+          <button
+            className="live-overlay-adjacent prev"
+            onClick={(e) => { e.stopPropagation(); goPrev(); resetOverlay(); }}
+          >
             <span className="live-overlay-adj-label">◀ Previous</span>
             <span className="live-overlay-adj-name">{prevCh.name}</span>
-          </div>
-          <div className="live-overlay-adjacent next">
+          </button>
+          <button
+            className="live-overlay-adjacent next"
+            onClick={(e) => { e.stopPropagation(); goNext(); resetOverlay(); }}
+          >
             <span className="live-overlay-adj-label">Next ▶</span>
             <span className="live-overlay-adj-name">{nextCh.name}</span>
-          </div>
+          </button>
         </div>
       </div>
     </div>

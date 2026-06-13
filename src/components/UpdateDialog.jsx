@@ -5,51 +5,39 @@ import { APP_VERSION } from "../utils/updateChecker";
 /**
  * Update installation dialog — shared between HomePage and SettingsPage.
  *
- * TV D-pad:
- *   ArrowRight from Install → focuses Later
- *   ArrowLeft  from Later   → focuses Install
- *   Escape / GoBack         → onDismiss()
- *   Overlay click outside card → onDismiss()
- *
- * Props:
- *   latestVersion  string        e.g. "v1.1.2"
- *   apkUrl         string|null   browser_download_url for the APK asset
- *   releaseNotes   string        GitHub release body text
- *   onDismiss      fn()          called when user closes dialog
+ * Auto-starts download on mount when running in native APK with a valid APK URL.
+ * Shows progress bar, handles permission_needed, error, and install states.
+ * D-pad: Escape / GoBack → onDismiss()
  */
 export default function UpdateDialog({ latestVersion, apkUrl, releaseNotes, onDismiss }) {
   const updater = useApkUpdater();
-  const installRef = useRef(null);
-  const laterRef = useRef(null);
+  const primaryRef = useRef(null);
+  const cancelRef = useRef(null);
   const isNative = !!(window.RushFlixUpdater);
   const isDownloading = updater.state === "downloading";
   const isInstalling = updater.state === "installing";
   const isError = updater.state === "error";
-  const isIdle =
-    updater.state === "idle" ||
-    updater.state === "cancelled" ||
-    updater.state === "permission_needed";
+  const isPermissionNeeded = updater.state === "permission_needed";
+  const isCancelled = updater.state === "cancelled";
+  const isIdle = updater.state === "idle";
+  const showTryAgain = isNative && apkUrl && (isError || isPermissionNeeded || isCancelled);
 
-  const handleInstall = () => {
-    if (!apkUrl) return;
-    updater.download(apkUrl);
-  };
+  // Auto-start download on mount when native + APK URL available
+  useEffect(() => {
+    if (isNative && apkUrl) {
+      updater.download(apkUrl);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleDismiss = () => {
-    if (updater.state === "downloading") updater.cancel();
-    else updater.reset();
-    onDismiss();
-  };
-
-  // Focus primary button on mount
+  // Focus cancel/primary button on mount
   useEffect(() => {
     const t = setTimeout(() => {
-      (isNative && apkUrl ? installRef.current : laterRef.current)?.focus();
+      (showTryAgain ? primaryRef.current : cancelRef.current)?.focus();
     }, 60);
     return () => clearTimeout(t);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // D-pad focus trap + back key (capture phase — intercepts before tvNav.js)
+  // D-pad focus + back key
   useEffect(() => {
     const handler = (e) => {
       if (e.key === "Escape" || e.key === "GoBack") {
@@ -59,18 +47,28 @@ export default function UpdateDialog({ latestVersion, apkUrl, releaseNotes, onDi
         return;
       }
       const active = document.activeElement;
-      if (e.key === "ArrowRight" && active === installRef.current) {
+      if (e.key === "ArrowRight" && active === primaryRef.current) {
         e.preventDefault();
-        laterRef.current?.focus();
+        cancelRef.current?.focus();
       }
-      if (e.key === "ArrowLeft" && active === laterRef.current) {
+      if (e.key === "ArrowLeft" && active === cancelRef.current) {
         e.preventDefault();
-        installRef.current?.focus();
+        primaryRef.current?.focus();
       }
     };
     document.addEventListener("keydown", handler, true);
     return () => document.removeEventListener("keydown", handler, true);
-  }, [handleDismiss]); // eslint-disable-line react-hooks/exhaustive-deps
+  }); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleDismiss = () => {
+    if (isDownloading) updater.cancel();
+    else updater.reset();
+    onDismiss();
+  };
+
+  const handleTryAgain = () => {
+    updater.download(apkUrl);
+  };
 
   const fmtBytes = (n) => {
     if (!n) return "";
@@ -124,20 +122,20 @@ export default function UpdateDialog({ latestVersion, apkUrl, releaseNotes, onDi
           }}>{releaseNotes}</div>
         ) : null}
 
-        {/* No APK attached to release */}
-        {!apkUrl && isIdle && (
+        {/* No APK attached */}
+        {!apkUrl && (
           <div style={{
             fontSize: 12, color: "var(--text3)", marginBottom: 20,
             padding: "8px 12px", background: "rgba(229,9,20,0.07)",
             borderRadius: 6, border: "1px solid rgba(229,9,20,0.2)",
           }}>
             {isNative
-              ? "No APK asset found in this release. Download manually from GitHub."
+              ? "No APK asset found in this release. Create the GitHub release with the APK attached."
               : "Running in browser — download the APK on your Android TV instead."}
           </div>
         )}
 
-        {/* Web context — no RushFlixUpdater bridge */}
+        {/* Web context — no bridge */}
         {!isNative && apkUrl && isIdle && (
           <div style={{ fontSize: 12, color: "var(--text3)", marginBottom: 20 }}>
             Running in browser — sideload this APK on your Android TV:
@@ -146,6 +144,24 @@ export default function UpdateDialog({ latestVersion, apkUrl, releaseNotes, onDi
               style={{ color: "var(--red)", wordBreak: "break-all" }}>
               {apkUrl}
             </a>
+          </div>
+        )}
+
+        {/* Auto-starting (brief flash before first progress event) */}
+        {isNative && apkUrl && isIdle && (
+          <div style={{ fontSize: 13, color: "var(--text3)", marginBottom: 20 }}>
+            Starting download…
+          </div>
+        )}
+
+        {/* Permission needed */}
+        {isPermissionNeeded && (
+          <div style={{
+            fontSize: 13, color: "var(--text2)", marginBottom: 20,
+            padding: "10px 14px", background: "rgba(255,160,0,0.1)",
+            borderRadius: 8, border: "1px solid rgba(255,160,0,0.3)",
+          }}>
+            Grant <strong>Install unknown apps</strong> for Rush Flix in the Settings screen that just opened, then tap <strong>Try Again</strong>.
           </div>
         )}
 
@@ -182,21 +198,28 @@ export default function UpdateDialog({ latestVersion, apkUrl, releaseNotes, onDi
           </div>
         )}
 
+        {isCancelled && (
+          <div style={{ fontSize: 13, color: "var(--text3)", marginBottom: 20 }}>
+            Download cancelled.
+          </div>
+        )}
+
         {/* Buttons */}
         <div style={{ display: "flex", gap: 12 }}>
-          {isNative && apkUrl && (isIdle || isError) && (
+          {showTryAgain && (
             <button
-              ref={installRef}
+              ref={primaryRef}
               className="btn tv-focusable"
               style={{ flex: 1, background: "var(--red)", color: "#fff", border: "none", fontWeight: 600 }}
-              onClick={handleInstall}
+              onClick={handleTryAgain}
             >
-              Install {latestVersion}
+              Try Again
             </button>
           )}
 
           {isDownloading && (
             <button
+              ref={cancelRef}
               className="btn btn-ghost tv-focusable"
               style={{ flex: 1 }}
               onClick={handleDismiss}
@@ -205,13 +228,13 @@ export default function UpdateDialog({ latestVersion, apkUrl, releaseNotes, onDi
             </button>
           )}
 
-          {(isIdle || isError) && (
+          {!isDownloading && !isInstalling && (
             <button
-              ref={laterRef}
+              ref={cancelRef}
               className="btn btn-ghost tv-focusable"
               onClick={handleDismiss}
             >
-              Later
+              {isError || isCancelled ? "Close" : "Later"}
             </button>
           )}
         </div>

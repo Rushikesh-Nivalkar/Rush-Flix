@@ -17,7 +17,9 @@ export function parseM3U(text) {
       const logo  = (line.match(/tvg-logo="([^"]+)"/)   || [])[1]         || null;
       const group = (line.match(/group-title="([^"]+)"/) || [])[1]?.trim() || "Uncategorized";
       const tvgId = (line.match(/tvg-id="([^"]+)"/)     || [])[1]         || null;
-      meta = { name, logo, group, tvgId };
+      const language = (line.match(/tvg-language="([^"]+)"/) || [])[1]?.trim() || "";
+      const country  = (line.match(/tvg-country="([^"]+)"/)  || [])[1]?.trim() || "";
+      meta = { name, logo, group, tvgId, language, country };
     } else if (line && !line.startsWith("#") && meta) {
       if (line.startsWith("http")) channels.push({ ...meta, url: line });
       meta = null;

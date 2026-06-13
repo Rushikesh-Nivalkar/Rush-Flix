@@ -75,8 +75,13 @@ export default function App() {
     setShowSearch(false);
   }, []);
 
+  const handleBack = useCallback(() => {
+    if (window.__livePlayerActive) return;
+    navigateBack();
+  }, [navigateBack]);
+
   // TV D-pad navigation — back button maps to navigateBack
-  useTVNavigation({ onBack: navigateBack });
+  useTVNavigation({ onBack: handleBack });
 
   useEffect(() => {
     const handler = (e) => setLiveCountry(e.detail || "");
@@ -257,6 +262,10 @@ export default function App() {
     let listener;
     (async () => {
       listener = await CapApp.addListener("backButton", () => {
+        if (window.__livePlayerActive) {
+          window.dispatchEvent(new CustomEvent("rushflix:closeLivePlayer"));
+          return;
+        }
         if (navStackRef.current.length > 0) {
           navigateBack();
         } else {

@@ -29,9 +29,19 @@ export default function LiveTVPage({ offline, countryFilter }) {
       .catch(()  => { setError("Could not load channels. Check your connection."); setLoading(false); });
   }, [offline, countryFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const sortedChannels = useMemo(() => {
+    const isEnglish = (lang) =>
+      !!lang && lang.split(";").some((l) => l.trim().toLowerCase() === "english");
+    const en = [], other = [];
+    for (const ch of channels) {
+      (isEnglish(ch.language) ? en : other).push(ch);
+    }
+    return [...en, ...other];
+  }, [channels]);
+
   const groups = useMemo(
-    () => [...new Set(channels.map((c) => c.group))].sort(),
-    [channels],
+    () => [...new Set(sortedChannels.map((c) => c.group))].sort(),
+    [sortedChannels],
   );
 
   useEffect(() => {
@@ -46,16 +56,16 @@ export default function LiveTVPage({ offline, countryFilter }) {
   }, [groups.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const groupChannels = useMemo(
-    () => (selectedGroup ? channels.filter((c) => c.group === selectedGroup).slice(0, 50) : []),
-    [channels, selectedGroup],
+    () => (selectedGroup ? sortedChannels.filter((c) => c.group === selectedGroup).slice(0, 50) : []),
+    [sortedChannels, selectedGroup],
   );
 
   // null = not searching; array = search mode (may be empty)
   const searchResults = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return null;
-    return channels.filter((c) => c.name.toLowerCase().includes(q)).slice(0, 100);
-  }, [channels, searchQuery]);
+    return sortedChannels.filter((c) => c.name.toLowerCase().includes(q)).slice(0, 100);
+  }, [sortedChannels, searchQuery]);
 
   const displayChannels = searchResults !== null ? searchResults : groupChannels;
 
@@ -99,6 +109,7 @@ export default function LiveTVPage({ offline, countryFilter }) {
   // ── D-pad two-zone handler (capture phase — overrides tvNav.js) ───────────
   useEffect(() => {
     const handler = (e) => {
+      if (window.__livePlayerActive) return;
       const zone = navZoneRef.current;
 
       if (zone === "sidebar") {

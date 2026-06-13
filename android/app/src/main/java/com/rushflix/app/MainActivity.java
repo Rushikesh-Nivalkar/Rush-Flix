@@ -155,6 +155,8 @@ public class MainActivity extends BridgeActivity {
 
         // Register bridge so React JS can call openPlayer / closePlayer / seekRelative
         webView.addJavascriptInterface(new RushFlixBridge(), "RushFlixBridge");
+        // Register APK updater — JS calls window.RushFlixUpdater.downloadAndInstall(url)
+        webView.addJavascriptInterface(new ApkUpdaterPlugin(this, webView), "RushFlixUpdater");
 
         setupOverlayWebView(webView);
 
