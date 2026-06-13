@@ -1,6 +1,6 @@
 {
   "name": "rush-flix",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "description": "Rush Flix — private Netflix-style TV app for Chromecast, Google TV, Android TV",
   "private": true,
   "scripts": {
