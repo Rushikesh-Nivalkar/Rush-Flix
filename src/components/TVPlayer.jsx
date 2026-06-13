@@ -66,6 +66,16 @@ export default function TVPlayer({
   const [iframeActive, setIframeActive] = useState(skipGate);
   const [showDebug, setShowDebug] = useState(false);
 
+  useEffect(() => {
+    window.__tvPlayerActive = true;
+    const handler = () => onClose();
+    window.addEventListener("rushflix:closeTVPlayer", handler);
+    return () => {
+      window.__tvPlayerActive = false;
+      window.removeEventListener("rushflix:closeTVPlayer", handler);
+    };
+  }, [onClose]);
+
   const subtitleSize = getCurrentPStore().get(STORAGE_KEYS.SUBTITLE_SIZE) || "medium";
   const subtitlePosition = getCurrentPStore().get(STORAGE_KEYS.SUBTITLE_POSITION) || "bottom";
 

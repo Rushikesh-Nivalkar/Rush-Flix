@@ -77,6 +77,10 @@ export default function App() {
 
   const handleBack = useCallback(() => {
     if (window.__livePlayerActive) return;
+    if (window.__tvPlayerActive) {
+      window.dispatchEvent(new CustomEvent("rushflix:closeTVPlayer"));
+      return;
+    }
     navigateBack();
   }, [navigateBack]);
 
@@ -264,6 +268,10 @@ export default function App() {
       listener = await CapApp.addListener("backButton", () => {
         if (window.__livePlayerActive) {
           window.dispatchEvent(new CustomEvent("rushflix:closeLivePlayer"));
+          return;
+        }
+        if (window.__tvPlayerActive) {
+          window.dispatchEvent(new CustomEvent("rushflix:closeTVPlayer"));
           return;
         }
         if (navStackRef.current.length > 0) {
