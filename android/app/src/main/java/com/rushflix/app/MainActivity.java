@@ -278,14 +278,10 @@ public class MainActivity extends BridgeActivity {
     public void onBackPressed() {
         if (overlayVisible) {
             hidePlayerOverlay();
-            return;
         }
-        WebView webView = getBridge() != null ? getBridge().getWebView() : null;
-        if (webView != null) {
-            webView.evaluateJavascript(
-                "window.dispatchEvent(new KeyboardEvent('keydown'," +
-                "{key:'GoBack',bubbles:true,cancelable:true}))", null);
-        }
+        // Route through Capacitor so the JS backButton event fires.
+        // App.jsx handles all cases: close live player, close TV player, navigate back, or exit.
+        super.onBackPressed();
     }
 
     @Override
