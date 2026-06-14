@@ -278,10 +278,17 @@ public class MainActivity extends BridgeActivity {
     public void onBackPressed() {
         if (overlayVisible) {
             hidePlayerOverlay();
+            return;
         }
-        // Route through Capacitor so the JS backButton event fires.
-        // App.jsx handles all cases: close live player, close TV player, navigate back, or exit.
-        super.onBackPressed();
+        // Calling super.onBackPressed() in Capacitor 8 calls finish() directly.
+        // Instead, fire a custom JS event — App.jsx handles all navigation cases.
+        WebView webView = getBridge() != null ? getBridge().getWebView() : null;
+        if (webView != null) {
+            webView.post(() -> webView.evaluateJavascript(
+                "window.dispatchEvent(new CustomEvent('rushflix:backButton'))", null));
+        } else {
+            super.onBackPressed();
+        }
     }
 
     @Override

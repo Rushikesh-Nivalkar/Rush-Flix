@@ -297,6 +297,27 @@ export default function App() {
     return () => { listener?.remove(); };
   }, [navigateBack]);
 
+  // ── rushflix:backButton (TV remote back — fired by MainActivity custom event) ─
+  useEffect(() => {
+    const handler = () => {
+      if (window.__livePlayerActive) {
+        window.dispatchEvent(new CustomEvent("rushflix:closeLivePlayer"));
+        return;
+      }
+      if (window.__tvPlayerActive) {
+        window.dispatchEvent(new CustomEvent("rushflix:closeTVPlayer"));
+        return;
+      }
+      if (navStackRef.current.length > 0) {
+        navigateBack();
+      } else {
+        CapApp.exitApp();
+      }
+    };
+    window.addEventListener("rushflix:backButton", handler);
+    return () => window.removeEventListener("rushflix:backButton", handler);
+  }, [navigateBack]);
+
   // ── Trending fetch (cached 30 min) ────────────────────────────────────────
   const fetchTrending = useCallback(() => {
     if (!apiKey) return;
