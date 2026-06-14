@@ -29,6 +29,7 @@ export default function TVPlayer({
   prefilledUrl = "",
   playerSource = null,
   onSourceChange = null,
+  preferredLang = null,
   // Episode navigation
   episodeList = [],
   currentEpIndex = -1,
@@ -90,6 +91,8 @@ export default function TVPlayer({
   const introSkipDuration = getCurrentPStore().get(STORAGE_KEYS.INTRO_SKIP_DURATION) || 90;
   const hasNextEp = currentEpIndex >= 0 && currentEpIndex < episodeList.length - 1;
   const nextEp = hasNextEp ? episodeList[currentEpIndex + 1] : null;
+  const hasNextEpRef = useRef(false);
+  const startUpNextRef = useRef(null);
 
   // Auto-focus URL input
   useEffect(() => {
@@ -104,6 +107,27 @@ export default function TVPlayer({
       clearInterval(countdownInterval.current);
     };
   }, []);
+
+  // Keep refs in sync for use inside event listeners
+  useEffect(() => { hasNextEpRef.current = hasNextEp; }, [hasNextEp]);
+  useEffect(() => { startUpNextRef.current = startUpNext; });
+
+  // postMessage listener: auto-trigger Up Next when iframe player signals end
+  useEffect(() => {
+    if (mode !== "iframe") return;
+    function onMsg(e) {
+      if (!hasNextEpRef.current) return;
+      const d = e.data;
+      const ended =
+        d === "ended" ||
+        d?.event === "ended" ||
+        d?.type === "ended" ||
+        d?.data?.ended === true;
+      if (ended) startUpNextRef.current?.();
+    }
+    window.addEventListener("message", onMsg);
+    return () => window.removeEventListener("message", onMsg);
+  }, [mode]);
 
   // Keyboard: back, skip ±10s, toggle episode list
   useEffect(() => {
@@ -376,7 +400,7 @@ export default function TVPlayer({
   function handleSourceChange(srcId) {
     const saved = storage.get(STORAGE_KEYS.CUSTOM_SOURCES) || {};
     if (saved[progressKey]) { delete saved[progressKey]; storage.set(STORAGE_KEYS.CUSTOM_SOURCES, saved); }
-    const newUrl = getSourceUrl(srcId, mediaType, tmdbId, season, episode);
+    const newUrl = getSourceUrl(srcId, mediaType, tmdbId, season, episode, preferredLang);
     console.log(`[RF] source change: ${activeSource} → ${srcId} | url="${newUrl}"`);
     setUrl(newUrl);
     setMode(detectMode(newUrl));
@@ -400,6 +424,18 @@ export default function TVPlayer({
           Cancel
         </button>
       </div>
+    </div>
+  ) : null;
+
+  const NextEpButton = mode === "iframe" && hasNextEp && nextEp && upNextCountdown === null ? (
+    <div className="next-ep-btn-wrap">
+      <button
+        className="tv-btn tv-btn-ghost tv-focusable next-ep-btn"
+        tabIndex={0}
+        onClick={playNextEp}
+      >
+        Next: E{nextEp.episode_number} · {nextEp.name} →
+      </button>
     </div>
   ) : null;
 
@@ -660,6 +696,7 @@ export default function TVPlayer({
           </button>
 
           {UpNextOverlay}
+          {NextEpButton}
           {EpListOverlay}
         </div>
       )}

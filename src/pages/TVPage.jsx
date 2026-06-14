@@ -33,6 +33,7 @@ export default function TVPage({
   const [playerSource, setPlayerSource] = useState(
     () => storage.get(STORAGE_KEYS.PLAYER_SOURCE) || NON_ANIME_DEFAULT_SOURCE,
   );
+  const [selectedLang, setSelectedLang] = useState(null);
 
   const pageRef = useRef(null);
   useEffect(() => {
@@ -54,6 +55,11 @@ export default function TVPage({
       .then((data) => {
         if (!mounted) return;
         setDetails(data);
+        setSelectedLang((prev) =>
+          prev === null && data.spoken_languages?.length > 0
+            ? data.spoken_languages[0].iso_639_1
+            : prev
+        );
         const vids = data.videos?.results || [];
         const t = vids.find((v) => v.type === "Trailer" && v.site === "YouTube") || vids.find((v) => v.site === "YouTube");
         if (t) setTrailerKey(t.key);
@@ -138,6 +144,7 @@ export default function TVPage({
 
   const overview = anilistData ? cleanAnilistDescription(anilistData.description) || details?.overview : details?.overview;
   const restricted = isRestricted(ageRating?.minAge, getAgeLimitSetting(storage));
+  const spokenLangs = details?.spoken_languages || [];
 
   if (playing) {
     const pk = epKey(playing.season, playing.episode);
@@ -160,12 +167,13 @@ export default function TVPage({
         onNextEpisode={handleNextEpisode}
         malId={anilistData?.idMal || null}
         offline={offline}
-        prefilledUrl={getSourceUrl(playerSource, "tv", item.id, playing.season, playing.episode)}
+        prefilledUrl={getSourceUrl(playerSource, "tv", item.id, playing.season, playing.episode, selectedLang)}
         playerSource={playerSource}
         onSourceChange={(src) => {
           setPlayerSource(src);
           storage.set(STORAGE_KEYS.PLAYER_SOURCE, src);
         }}
+        preferredLang={selectedLang}
         skipGate={true}
       />
     );
@@ -217,6 +225,20 @@ export default function TVPage({
                 </button>
               ))}
             </div>
+            {spokenLangs.length > 1 && (
+              <div className="source-picker-bar" style={{ marginBottom: "16px" }}>
+                {spokenLangs.map((l) => (
+                  <button
+                    key={l.iso_639_1}
+                    className={`tv-btn source-picker-btn tv-focusable${selectedLang === l.iso_639_1 ? " tv-btn-primary" : " tv-btn-ghost"}`}
+                    tabIndex={0}
+                    onClick={() => setSelectedLang(l.iso_639_1)}
+                  >
+                    {l.english_name}
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="detail-actions">
               <button className="tv-btn tv-btn-ghost tv-focusable" tabIndex={0} onClick={onSave}>
                 {isSaved ? <BookmarkFillIcon /> : <BookmarkIcon />}

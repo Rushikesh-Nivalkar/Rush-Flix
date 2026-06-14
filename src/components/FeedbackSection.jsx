@@ -8,8 +8,8 @@ const ISSUE_TYPES = [
   { value: "feedback", label: "General Feedback", emoji: "💬" },
 ];
 
-const GITHUB_NEW_ISSUE_URL =
-  "https://github.com/Rushikesh-Nivalkar/Rush-Flix/issues/new";
+const feedbackToken = import.meta.env.VITE_FEEDBACK_TOKEN || "";
+const FEEDBACK_FORM_URL = `https://rushikesh-nivalkar.github.io/Rush-Flix/feedback.html?t=${encodeURIComponent(feedbackToken)}&v=${encodeURIComponent(APP_VERSION)}`;
 
 function buildIssueTitle(type, body) {
   const prefix = ISSUE_TYPES.find((t) => t.value === type)?.label || "Feedback";
@@ -105,15 +105,15 @@ export default function FeedbackSection() {
       <div className="feedback-qr-row">
         <div className="feedback-qr-wrap">
           <QRCodeSVG
-            value={GITHUB_NEW_ISSUE_URL}
+            value={FEEDBACK_FORM_URL}
             size={120}
             bgColor="#ffffff"
             fgColor="#111111"
           />
         </div>
         <div className="feedback-qr-hint">
-          <p className="feedback-qr-label">Scan to open on your phone</p>
-          <p className="feedback-qr-sub">Opens GitHub — requires GitHub account</p>
+          <p className="feedback-qr-label">Scan to submit from your phone</p>
+          <p className="feedback-qr-sub">Opens Rush Flix feedback form — no account needed</p>
         </div>
       </div>
 

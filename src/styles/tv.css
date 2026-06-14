@@ -2291,3 +2291,18 @@ input:focus,
 .feedback-success-icon { font-size: 3rem; color: #4ade80; }
 .feedback-success-title { font-size: 1.2rem; font-weight: 600; }
 .feedback-success-url { font-size: 0.75rem; color: #aaa; word-break: break-all; max-width: 400px; }
+
+/* ── Next Episode button (iframe mode) ───────────────────────────────────── */
+.next-ep-btn-wrap {
+  position: absolute;
+  bottom: 24px;
+  right: 24px;
+  z-index: 10;
+}
+.next-ep-btn {
+  background: rgba(0, 0, 0, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  font-size: 14px;
+  padding: 10px 18px;
+  white-space: nowrap;
+}

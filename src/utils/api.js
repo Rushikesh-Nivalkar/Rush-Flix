@@ -162,9 +162,10 @@ export const PLAYER_SOURCES = [
   },
 ];
 
-export const getSourceUrl = (sourceId, type, id, season, ep) => {
+export const getSourceUrl = (sourceId, type, id, season, ep, lang) => {
   const src = PLAYER_SOURCES.find((s) => s.id === sourceId) ?? PLAYER_SOURCES[0];
-  return type === "movie" ? src.movieUrl(id) : src.tvUrl(id, season, ep);
+  const base = type === "movie" ? src.movieUrl(id) : src.tvUrl(id, season, ep);
+  return lang ? `${base}?lang=${lang}` : base;
 };
 
 export const NON_ANIME_DEFAULT_SOURCE = "videasy";

@@ -40,6 +40,7 @@ export default function MoviePage({
   const [playerSource, setPlayerSource] = useState(
     () => storage.get(STORAGE_KEYS.PLAYER_SOURCE) || NON_ANIME_DEFAULT_SOURCE,
   );
+  const [selectedLang, setSelectedLang] = useState(null);
 
   const pageRef = useRef(null);
   useEffect(() => {
@@ -72,6 +73,11 @@ export default function MoviePage({
         if (trailer) setTrailerKey(trailer.key);
         // Similar
         setSimilar((data.similar?.results || []).slice(0, 12).map((m) => ({ ...m, media_type: "movie" })));
+        setSelectedLang((prev) =>
+          prev === null && data.spoken_languages?.length > 0
+            ? data.spoken_languages[0].iso_639_1
+            : prev
+        );
       })
       .catch(() => {});
     return () => { mounted = false; };
@@ -117,6 +123,7 @@ export default function MoviePage({
     : details?.overview;
 
   const restricted = isRestricted(ageRating?.minAge, getAgeLimitSetting(storage));
+  const spokenLangs = details?.spoken_languages || [];
 
   if (playing) {
     return (
@@ -131,12 +138,13 @@ export default function MoviePage({
         apiKey={apiKey}
         tmdbId={item.id}
         mediaType="movie"
-        prefilledUrl={getSourceUrl(playerSource, "movie", item.id)}
+        prefilledUrl={getSourceUrl(playerSource, "movie", item.id, undefined, undefined, selectedLang)}
         playerSource={playerSource}
         onSourceChange={(src) => {
           setPlayerSource(src);
           storage.set(STORAGE_KEYS.PLAYER_SOURCE, src);
         }}
+        preferredLang={selectedLang}
         skipGate={true}
       />
     );
@@ -196,6 +204,20 @@ export default function MoviePage({
                 </button>
               ))}
             </div>
+            {spokenLangs.length > 1 && (
+              <div className="source-picker-bar" style={{ marginBottom: "16px" }}>
+                {spokenLangs.map((l) => (
+                  <button
+                    key={l.iso_639_1}
+                    className={`tv-btn source-picker-btn tv-focusable${selectedLang === l.iso_639_1 ? " tv-btn-primary" : " tv-btn-ghost"}`}
+                    tabIndex={0}
+                    onClick={() => setSelectedLang(l.iso_639_1)}
+                  >
+                    {l.english_name}
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="detail-actions">
               {!restricted && (
                 <button className="tv-btn tv-btn-primary tv-focusable" tabIndex={0} onClick={handlePlay}>

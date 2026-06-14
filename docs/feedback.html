@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rush Flix — Feedback</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:#0a0a0a;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+    .card{background:#1a1a1a;border-radius:16px;padding:32px;max-width:480px;width:100%}
+    .logo{color:#e50914;font-size:24px;font-weight:700;margin-bottom:8px}
+    .sub{color:#888;font-size:14px;margin-bottom:24px}
+    label{display:block;color:#aaa;font-size:13px;margin-bottom:8px}
+    select,textarea{width:100%;background:#111;color:#fff;border:1px solid #333;border-radius:8px;padding:12px;font-size:15px;margin-bottom:20px;outline:none;font-family:inherit}
+    select:focus,textarea:focus{border-color:#e50914}
+    textarea{min-height:140px;resize:vertical}
+    button{width:100%;background:#e50914;color:#fff;border:none;border-radius:8px;padding:14px;font-size:16px;font-weight:600;cursor:pointer}
+    button:disabled{opacity:.5;cursor:not-allowed}
+    .status{margin-top:16px;padding:12px;border-radius:8px;font-size:14px;text-align:center;display:none}
+    .ok{background:#1a3a1a;color:#4caf50}
+    .err{background:#3a1a1a;color:#f44336}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">Rush Flix</div>
+    <div class="sub">Send feedback, report a bug, or request a feature</div>
+    <label for="type">Type</label>
+    <select id="type">
+      <option value="bug">🐛 Bug Report</option>
+      <option value="feature">✨ Feature Request</option>
+      <option value="feedback">💬 General Feedback</option>
+    </select>
+    <label for="body">Description</label>
+    <textarea id="body" placeholder="Describe the bug, feature, or feedback..." maxlength="2000"></textarea>
+    <button id="btn">Submit Feedback</button>
+    <div id="status" class="status"></div>
+  </div>
+  <script>
+    const p=new URLSearchParams(location.search);
+    const tok=p.get('t')||'';
+    const ver=p.get('v')||'unknown';
+    const btn=document.getElementById('btn');
+    const status=document.getElementById('status');
+    if(!tok){
+      btn.disabled=true;
+      status.style.display='block';
+      status.className='status err';
+      status.textContent='Invalid link — scan the QR code from the Rush Flix app.';
+    }
+    const LABELS={bug:'Bug Report',feature:'Feature Request',feedback:'General Feedback'};
+    const EMOJIS={bug:'🐛',feature:'✨',feedback:'💬'};
+    const GH_LABELS={bug:'bug',feature:'enhancement',feedback:'feedback'};
+    btn.addEventListener('click',async()=>{
+      const type=document.getElementById('type').value;
+      const body=document.getElementById('body').value.trim();
+      if(!body){alert('Please enter a description.');return;}
+      btn.disabled=true;btn.textContent='Submitting…';status.style.display='none';
+      try{
+        const r=await fetch('https://api.github.com/repos/Rushikesh-Nivalkar/Rush-Flix/issues',{
+          method:'POST',
+          headers:{'Authorization':'Bearer '+tok,'Content-Type':'application/json','Accept':'application/vnd.github+json'},
+          body:JSON.stringify({
+            title:'['+LABELS[type]+'] '+body.slice(0,60)+(body.length>60?'…':''),
+            body:'**Type:** '+EMOJIS[type]+' '+LABELS[type]+'\n**App Version:** '+ver+'\n**Submitted via:** Rush Flix Web Form\n\n---\n\n'+body,
+            labels:[GH_LABELS[type]]
+          })
+        });
+        if(!r.ok)throw new Error('GitHub API '+r.status);
+        const d=await r.json();
+        status.style.display='block';status.className='status ok';
+        status.textContent='✓ Issue #'+d.number+' created. Thank you!';
+        btn.textContent='Submitted ✓';
+      }catch(e){
+        status.style.display='block';status.className='status err';
+        status.textContent='Failed: '+e.message;
+        btn.disabled=false;btn.textContent='Submit Feedback';
+      }
+    });
+  </script>
+</body>
+</html>
