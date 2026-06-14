@@ -2263,3 +2263,31 @@ input:focus,
   font-size: 0.82rem;
   color: #f9c74f;
 }
+
+/* ── Feedback Section ──────────────────────────────────────────────────────── */
+.feedback-section { display: flex; flex-direction: column; gap: 20px; max-width: 600px; }
+
+.feedback-qr-row { display: flex; align-items: center; gap: 24px; }
+.feedback-qr-wrap {
+  background: #fff; padding: 10px; border-radius: 10px;
+  flex-shrink: 0;
+}
+.feedback-qr-label { font-size: 1rem; font-weight: 600; margin: 0 0 4px; }
+.feedback-qr-sub { font-size: 0.8rem; color: #aaa; margin: 0; }
+
+.feedback-divider { text-align: center; color: #666; font-size: 0.85rem; }
+
+.feedback-form { display: flex; flex-direction: column; gap: 10px; }
+.feedback-label { font-size: 0.85rem; color: #aaa; }
+.feedback-select { width: 100%; }
+.feedback-textarea { width: 100%; resize: vertical; min-height: 100px; font-family: inherit; }
+.feedback-char-count { font-size: 0.75rem; color: #666; text-align: right; }
+.feedback-error { color: #f87171; font-size: 0.875rem; }
+
+.feedback-success {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 12px; padding: 40px 0; text-align: center;
+}
+.feedback-success-icon { font-size: 3rem; color: #4ade80; }
+.feedback-success-title { font-size: 1.2rem; font-weight: 600; }
+.feedback-success-url { font-size: 0.75rem; color: #aaa; word-break: break-all; max-width: 400px; }

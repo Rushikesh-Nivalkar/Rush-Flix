@@ -19,6 +19,7 @@ import {
 } from "../utils/homeLayout";
 import { formatBytes } from "../utils/storage";
 import ApiKeyQRModal from "../components/ApiKeyQRModal";
+import FeedbackSection from "../components/FeedbackSection";
 const COUNTRIES_API = "https://iptv-org.github.io/api/countries.json";
 
 // ── Custom Select ─────────────────────────────────────────────────────────────
@@ -2288,6 +2289,7 @@ const TV_TABS = [
   { id: "library",   label: "Library",   icon: "📚", sections: ["library"] },
   { id: "data",      label: "Data",      icon: "🗄", sections: ["backup", "storage"] },
   { id: "live-tv",   label: "Live TV",   icon: "📺", sections: ["live-tv"] },
+  { id: "feedback",  label: "Feedback",  icon: "💬", sections: ["feedback"] },
 ];
 
 const TV_TAB_OF = {
@@ -2297,6 +2299,7 @@ const TV_TAB_OF = {
   library: "library",
   backup: "data", storage: "data",
   "live-tv": "live-tv",
+  feedback: "feedback",
 };
 
 function sectionToTab(sectionId) {
@@ -2948,6 +2951,7 @@ export default function SettingsPage({
   const secBackup = useRef(null);
   const secStorage = useRef(null);
   const secLiveTv = useRef(null);
+  const secFeedback = useRef(null);
 
   const sectionRefs = {
     updates: secUpdates,
@@ -2959,6 +2963,7 @@ export default function SettingsPage({
     backup: secBackup,
     storage: secStorage,
     "live-tv": secLiveTv,
+    feedback: secFeedback,
   };
 
   // Ref for find-in-page search scope
@@ -3870,6 +3875,17 @@ export default function SettingsPage({
             subtitle="Country-filtered tab in the navigation bar"
           />
           <LiveTvSettingsSection />
+        </div>
+
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {/* GROUP: FEEDBACK                                                     */}
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        <div ref={secFeedback} style={{ display: activeTab !== "feedback" ? "none" : undefined }}>
+          <SectionGroupHeader
+            title="Feedback"
+            subtitle="Report a bug, request a feature, or send general feedback"
+          />
+          <FeedbackSection />
         </div>
 
       </div>
