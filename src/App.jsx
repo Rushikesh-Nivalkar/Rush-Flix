@@ -44,9 +44,9 @@ export default function App() {
 
   // ── Navigation ────────────────────────────────────────────────────────────
   const [page, setPage] = useState(() => storage.get(STORAGE_KEYS.START_PAGE) || "home");
-  const [liveCountry, setLiveCountry] = useState(
-    () => storage.get(STORAGE_KEYS.LIVE_TV_COUNTRY) || ""
-  );
+  const [liveCountry,  setLiveCountry]  = useState(() => storage.get(STORAGE_KEYS.LIVE_TV_COUNTRY)  || "");
+  const [liveCategory, setLiveCategory] = useState(() => storage.get(STORAGE_KEYS.LIVE_TV_CATEGORY) || "");
+  const [liveLanguage, setLiveLanguage] = useState(() => storage.get(STORAGE_KEYS.LIVE_TV_LANGUAGE) || "");
   const [selected, setSelected] = useState(null);
   const [navStack, setNavStack] = useState([]);
   const [showSearch, setShowSearch] = useState(false);
@@ -88,9 +88,17 @@ export default function App() {
   useTVNavigation({ onBack: handleBack });
 
   useEffect(() => {
-    const handler = (e) => setLiveCountry(e.detail || "");
-    window.addEventListener("liveCountryChanged", handler);
-    return () => window.removeEventListener("liveCountryChanged", handler);
+    const onCountry  = (e) => setLiveCountry(e.detail  || "");
+    const onCategory = (e) => setLiveCategory(e.detail || "");
+    const onLanguage = (e) => setLiveLanguage(e.detail || "");
+    window.addEventListener("liveCountryChanged",  onCountry);
+    window.addEventListener("liveCategoryChanged", onCategory);
+    window.addEventListener("liveLanguageChanged", onLanguage);
+    return () => {
+      window.removeEventListener("liveCountryChanged",  onCountry);
+      window.removeEventListener("liveCategoryChanged", onCategory);
+      window.removeEventListener("liveLanguageChanged", onLanguage);
+    };
   }, []);
 
   // ── Per-profile data (watchlist, history, progress, watched) ──────────────
@@ -647,6 +655,8 @@ export default function App() {
           onSearch={() => setShowSearch(true)}
           activeProfile={activeProfile}
           liveCountry={liveCountry}
+          liveCategory={liveCategory}
+          liveLanguage={liveLanguage}
         />
 
         <div className="tv-main main lrud-container">
@@ -768,6 +778,12 @@ export default function App() {
             )}
             {page === "live-country" && (
               <LiveTVPage offline={offline} countryFilter={liveCountry} />
+            )}
+            {page === "live-category" && (
+              <LiveTVPage offline={offline} categoryFilter={liveCategory} />
+            )}
+            {page === "live-language" && (
+              <LiveTVPage offline={offline} languageFilter={liveLanguage} />
             )}
             {page === "player" && selected && (
               <TVPlayer

@@ -1,13 +1,20 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import LivePlayer from "../components/LivePlayer";
-import { fetchChannels, fetchChannelsByCountry } from "../utils/m3uParser";
+import {
+  fetchChannels, fetchChannelsByCountry, fetchChannelsByCategory, fetchChannelsByLanguage,
+  fetchChannelsMeta, fetchGuidesJson, enrichChannels,
+} from "../utils/m3uParser";
+import { storage, STORAGE_KEYS } from "../utils/storage";
 import { SearchIcon } from "../components/Icons";
 
-export default function LiveTVPage({ offline, countryFilter }) {
+export default function LiveTVPage({ offline, countryFilter, categoryFilter, languageFilter }) {
+  const hideNsfw = !!storage.get(STORAGE_KEYS.LIVE_TV_HIDE_NSFW);
+
   const [channels,      setChannels]      = useState([]);
   const [loading,       setLoading]       = useState(true);
   const [error,         setError]         = useState(null);
   const [selectedGroup, setSelectedGroup] = useState(null);
+  const [guidesMap,     setGuidesMap]     = useState(null); // Map<tvgId, guideEntry>
   const [activeChannel, setActiveChannel] = useState(null);
   const [searchQuery,   setSearchQuery]   = useState("");
 
@@ -23,21 +30,41 @@ export default function LiveTVPage({ offline, countryFilter }) {
     setLoading(true);
     setError(null);
     setSelectedGroup(null);
-    const fetcher = countryFilter ? fetchChannelsByCountry(countryFilter) : fetchChannels();
-    fetcher
-      .then((ch) => { setChannels(ch); setLoading(false); })
-      .catch(()  => { setError("Could not load channels. Check your connection."); setLoading(false); });
-  }, [offline, countryFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    let fetcher;
+    if (countryFilter)   fetcher = fetchChannelsByCountry(countryFilter);
+    else if (categoryFilter) fetcher = fetchChannelsByCategory(categoryFilter);
+    else if (languageFilter) fetcher = fetchChannelsByLanguage(languageFilter);
+    else                 fetcher = fetchChannels();
+
+    // Fetch channels + enrich with NSFW metadata if filter enabled, + fetch guides for EPG badges
+    const metaFetch   = hideNsfw ? fetchChannelsMeta().catch(() => null) : Promise.resolve(null);
+    const guidesFetch = fetchGuidesJson().catch(() => null);
+
+    Promise.all([fetcher, metaFetch, guidesFetch])
+      .then(([ch, meta, guides]) => {
+        const enriched = meta ? enrichChannels(ch, meta) : ch;
+        setChannels(enriched);
+        setGuidesMap(guides);
+        setLoading(false);
+      })
+      .catch(() => { setError("Could not load channels. Check your connection."); setLoading(false); });
+  }, [offline, countryFilter, categoryFilter, languageFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sortedChannels = useMemo(() => {
     const isEnglish = (lang) =>
       !!lang && lang.split(";").some((l) => l.trim().toLowerCase() === "english");
+    const base = hideNsfw ? channels.filter((ch) => !ch.isNsfw) : channels;
+    // Tag channels that have EPG guide data
+    const tagged = guidesMap
+      ? base.map((ch) => ({ ...ch, hasEpg: !!(ch.tvgId && guidesMap.has(ch.tvgId)) }))
+      : base;
     const en = [], other = [];
-    for (const ch of channels) {
+    for (const ch of tagged) {
       (isEnglish(ch.language) ? en : other).push(ch);
     }
     return [...en, ...other];
-  }, [channels]);
+  }, [channels, hideNsfw, guidesMap]);
 
   const groups = useMemo(
     () => [...new Set(sortedChannels.map((c) => c.group))].sort(),
@@ -290,7 +317,10 @@ export default function LiveTVPage({ offline, countryFilter }) {
                       )}
                     </div>
                     <div className="channel-name">{ch.name}</div>
-                    <div className="channel-live-badge">● LIVE</div>
+                    <div className="channel-live-badge">
+                      {ch.hasEpg && <span className="channel-epg-badge">📅</span>}
+                      ● LIVE
+                    </div>
                   </button>
                 ))}
               </div>

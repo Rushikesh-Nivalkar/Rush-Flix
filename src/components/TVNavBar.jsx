@@ -1,7 +1,7 @@
 import { HomeIcon, SearchIcon, HistoryIcon, SettingsIcon, SourceIcon, LiveIcon } from "./Icons";
 import RushFlixLogo from "./RushFlixLogo";
 
-export default function TVNavBar({ page, onNavigate, onSearch, activeProfile, liveCountry }) {
+export default function TVNavBar({ page, onNavigate, onSearch, activeProfile, liveCountry, liveCategory, liveLanguage }) {
   const isPhone = window.screen.width < 1200;
 
   const items = [
@@ -18,6 +18,8 @@ export default function TVNavBar({ page, onNavigate, onSearch, activeProfile, li
         style={{ width: "1.5rem", height: "auto", borderRadius: 2, display: "block" }}
       />,
     }] : []),
+    ...(liveCategory ? [{ id: "live-category", label: liveCategory, icon: <LiveIcon /> }] : []),
+    ...(liveLanguage ? [{ id: "live-language", label: liveLanguage, icon: <LiveIcon /> }] : []),
     { id: "sources",  label: "Sources", icon: <SourceIcon /> },
     { id: "settings", label: "Settings", icon: <SettingsIcon /> },
   ];

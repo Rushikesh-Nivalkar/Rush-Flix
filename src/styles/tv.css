@@ -2113,6 +2113,15 @@ input:focus,
   color: var(--red);
   letter-spacing: 0.06em;
   text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.channel-epg-badge {
+  font-size: 0.7rem;
+  opacity: 0.75;
+  flex-shrink: 0;
 }
 
 /* ── Live Player ───────────────────────────────────────────────────────────── */

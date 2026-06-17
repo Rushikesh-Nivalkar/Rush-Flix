@@ -20,6 +20,7 @@ import {
 import { formatBytes } from "../utils/storage";
 import ApiKeyQRModal from "../components/ApiKeyQRModal";
 import FeedbackSection from "../components/FeedbackSection";
+import { fetchCategoriesJson, fetchLanguagesJson } from "../utils/m3uParser";
 const COUNTRIES_API = "https://iptv-org.github.io/api/countries.json";
 
 // ── Custom Select ─────────────────────────────────────────────────────────────
@@ -2043,66 +2044,142 @@ function Divider() {
 
 // ── Live TV Settings Section ───────────────────────────────────────────────────
 function LiveTvSettingsSection() {
-  const [selectedCountry, setSelectedCountry] = useState(
-    () => storage.get(STORAGE_KEYS.LIVE_TV_COUNTRY) || ""
-  );
-  const [countries, setCountries] = useState([]);
-  const [loadingCountries, setLoadingCountries] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [selectedCountry,  setSelectedCountry]  = useState(() => storage.get(STORAGE_KEYS.LIVE_TV_COUNTRY)  || "");
+  const [selectedCategory, setSelectedCategory] = useState(() => storage.get(STORAGE_KEYS.LIVE_TV_CATEGORY) || "");
+  const [selectedLanguage, setSelectedLanguage] = useState(() => storage.get(STORAGE_KEYS.LIVE_TV_LANGUAGE) || "");
+  const [hideNsfw,         setHideNsfw]         = useState(() => !!storage.get(STORAGE_KEYS.LIVE_TV_HIDE_NSFW));
+
+  const [countries,        setCountries]        = useState([]);
+  const [categories,       setCategories]       = useState([]);
+  const [languages,        setLanguages]        = useState([]);
+  const [loadingMeta,      setLoadingMeta]      = useState(true);
+
+  const [countrySaved,     setCountrySaved]     = useState(false);
+  const [categorySaved,    setCategorySaved]    = useState(false);
+  const [languageSaved,    setLanguageSaved]    = useState(false);
 
   useEffect(() => {
-    setLoadingCountries(true);
-    fetch(COUNTRIES_API)
-      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then((data) => setCountries(data))
-      .catch(() => setCountries([]))
-      .finally(() => setLoadingCountries(false));
+    Promise.all([
+      fetch(COUNTRIES_API).then((r) => r.json()).catch(() => []),
+      fetchCategoriesJson().catch(() => []),
+      fetchLanguagesJson().catch(() => []),
+    ]).then(([c, cat, lang]) => {
+      setCountries(c);
+      setCategories(cat);
+      setLanguages(lang);
+      setLoadingMeta(false);
+    });
   }, []);
 
-  const handleSave = () => {
+  const handleCountrySave = () => {
     storage.set(STORAGE_KEYS.LIVE_TV_COUNTRY, selectedCountry);
     window.dispatchEvent(new CustomEvent("liveCountryChanged", { detail: selectedCountry }));
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    setCountrySaved(true);
+    setTimeout(() => setCountrySaved(false), 2000);
   };
-
-  const handleClear = () => {
+  const handleCountryClear = () => {
     setSelectedCountry("");
     storage.remove(STORAGE_KEYS.LIVE_TV_COUNTRY);
     window.dispatchEvent(new CustomEvent("liveCountryChanged", { detail: "" }));
   };
 
-  const options = [
+  const handleCategorySave = () => {
+    storage.set(STORAGE_KEYS.LIVE_TV_CATEGORY, selectedCategory);
+    window.dispatchEvent(new CustomEvent("liveCategoryChanged", { detail: selectedCategory }));
+    setCategorySaved(true);
+    setTimeout(() => setCategorySaved(false), 2000);
+  };
+  const handleCategoryClear = () => {
+    setSelectedCategory("");
+    storage.remove(STORAGE_KEYS.LIVE_TV_CATEGORY);
+    window.dispatchEvent(new CustomEvent("liveCategoryChanged", { detail: "" }));
+  };
+
+  const handleLanguageSave = () => {
+    storage.set(STORAGE_KEYS.LIVE_TV_LANGUAGE, selectedLanguage);
+    window.dispatchEvent(new CustomEvent("liveLanguageChanged", { detail: selectedLanguage }));
+    setLanguageSaved(true);
+    setTimeout(() => setLanguageSaved(false), 2000);
+  };
+  const handleLanguageClear = () => {
+    setSelectedLanguage("");
+    storage.remove(STORAGE_KEYS.LIVE_TV_LANGUAGE);
+    window.dispatchEvent(new CustomEvent("liveLanguageChanged", { detail: "" }));
+  };
+
+  const handleNsfwToggle = (val) => {
+    setHideNsfw(val);
+    storage.set(STORAGE_KEYS.LIVE_TV_HIDE_NSFW, val ? 1 : 0);
+    window.dispatchEvent(new CustomEvent("liveNsfwChanged", { detail: val }));
+  };
+
+  const countryOptions  = [
     { value: "", label: "— No country filter —" },
-    ...countries.map((c) => ({
-      value: c.code,
-      label: c.name,
-      image: `https://flagcdn.com/20x15/${c.code.toLowerCase()}.png`,
-    })),
+    ...countries.map((c) => ({ value: c.code, label: c.name, image: `https://flagcdn.com/20x15/${c.code.toLowerCase()}.png` })),
   ];
+  const categoryOptions = [
+    { value: "", label: "— No category filter —" },
+    ...categories.map((c) => ({ value: c.id, label: c.name })),
+  ];
+  const languageOptions = [
+    { value: "", label: "— No language filter —" },
+    ...languages.map((l) => ({ value: l.code, label: l.name })),
+  ];
+
+  if (loadingMeta) {
+    return <div style={{ color: "var(--text3)", fontSize: 13 }}>Loading Live TV options…</div>;
+  }
 
   return (
     <div style={{ marginBottom: 40 }}>
+
+      {/* ── Country Filter ────────────────────────────────────────────────── */}
       <div className="settings-section-title">Country Filter</div>
       <div style={{ fontSize: 13, color: "var(--text3)", marginBottom: 16, lineHeight: 1.6 }}>
-        Select a country to add a dedicated tab in the navbar showing only channels from that country, grouped by genre. Leave blank to hide the tab.
+        Adds a dedicated navbar tab showing only channels from that country, grouped by genre.
       </div>
-      {loadingCountries ? (
-        <div style={{ color: "var(--text3)", fontSize: 13 }}>Loading channel list…</div>
-      ) : (
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <SettingsSelect
-            value={selectedCountry}
-            onChange={(v) => setSelectedCountry(v)}
-            options={options}
-          />
-          <button className="btn btn-primary" onClick={handleSave}>Save</button>
-          {selectedCountry && (
-            <button className="btn btn-ghost" onClick={handleClear}>Clear</button>
-          )}
-          {saved && <span style={{ fontSize: 13, color: "#48c774" }}>✓ Saved</span>}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 32 }}>
+        <SettingsSelect value={selectedCountry} onChange={(v) => setSelectedCountry(v)} options={countryOptions} />
+        <button className="btn btn-primary" onClick={handleCountrySave}>Save</button>
+        {selectedCountry && <button className="btn btn-ghost" onClick={handleCountryClear}>Clear</button>}
+        {countrySaved && <span style={{ fontSize: 13, color: "#48c774" }}>✓ Saved</span>}
+      </div>
+
+      {/* ── Category Filter ───────────────────────────────────────────────── */}
+      <div className="settings-section-title">Category Filter</div>
+      <div style={{ fontSize: 13, color: "var(--text3)", marginBottom: 16, lineHeight: 1.6 }}>
+        Adds a dedicated navbar tab for a specific category — News, Sports, Movies, Music and more. Works alongside country and language filters.
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 32 }}>
+        <SettingsSelect value={selectedCategory} onChange={(v) => setSelectedCategory(v)} options={categoryOptions} />
+        <button className="btn btn-primary" onClick={handleCategorySave}>Save</button>
+        {selectedCategory && <button className="btn btn-ghost" onClick={handleCategoryClear}>Clear</button>}
+        {categorySaved && <span style={{ fontSize: 13, color: "#48c774" }}>✓ Saved</span>}
+      </div>
+
+      {/* ── Language Filter ───────────────────────────────────────────────── */}
+      <div className="settings-section-title">Language Filter</div>
+      <div style={{ fontSize: 13, color: "var(--text3)", marginBottom: 16, lineHeight: 1.6 }}>
+        Adds a dedicated navbar tab showing only channels broadcast in that language.
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 32 }}>
+        <SettingsSelect value={selectedLanguage} onChange={(v) => setSelectedLanguage(v)} options={languageOptions} />
+        <button className="btn btn-primary" onClick={handleLanguageSave}>Save</button>
+        {selectedLanguage && <button className="btn btn-ghost" onClick={handleLanguageClear}>Clear</button>}
+        {languageSaved && <span style={{ fontSize: 13, color: "#48c774" }}>✓ Saved</span>}
+      </div>
+
+      {/* ── Content Filter (NSFW) ─────────────────────────────────────────── */}
+      <div className="settings-section-title">Content Filter</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <Toggle value={hideNsfw} onChange={handleNsfwToggle} />
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 500, color: "var(--text)" }}>Hide adult channels</div>
+          <div style={{ fontSize: 12, color: "var(--text3)", marginTop: 2 }}>
+            Filters out channels flagged as NSFW using iptv-org channel metadata.
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -2278,7 +2355,7 @@ const SECTION_NAV = [
     id: "live-tv",
     label: "Live TV",
     icon: "📺",
-    keywords: ["live", "tv", "iptv", "country", "channel", "filter", "stream"],
+    keywords: ["live", "tv", "iptv", "country", "channel", "filter", "stream", "category", "language", "nsfw", "adult", "news", "sports", "epg", "guide"],
   },
 ];
 
@@ -3872,7 +3949,7 @@ export default function SettingsPage({
         <div ref={secLiveTv} style={{ display: activeTab !== "live-tv" ? "none" : undefined }}>
           <SectionGroupHeader
             title="Live TV"
-            subtitle="Country-filtered tab in the navigation bar"
+            subtitle="Country, category, and language filters — each adds a dedicated navbar tab"
           />
           <LiveTvSettingsSection />
         </div>
