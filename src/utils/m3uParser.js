@@ -72,8 +72,8 @@ export async function fetchChannels() {
 }
 
 export const fetchChannelsByCountry  = makeMFetcher(_countryChannels, _countryFetchTimes, _countryFetchPromises, COUNTRY_M3U);
-export const fetchChannelsByCategory = makeMFetcher(_catChannels,     _catTimes,          _catPromises,          CATEGORY_M3U);
-export const fetchChannelsByLanguage = makeMFetcher(_langChannels,    _langTimes,         _langPromises,         LANGUAGE_M3U);
+export const fetchChannelsByCategory = makeMFetcher(_catChannels,  _catTimes,  _catPromises,  CATEGORY_M3U);
+export const fetchChannelsByLanguage = makeMFetcher(_langChannels, _langTimes, _langPromises, LANGUAGE_M3U);
 
 // ── JSON metadata fetchers ────────────────────────────────────────────────────
 function makeJsonFetcher(getRef, setRef, getTime, setTime, getPromise, setPromise, url) {
@@ -143,7 +143,6 @@ export async function fetchGuidesJson() {
 }
 
 // ── Enrichment ────────────────────────────────────────────────────────────────
-// Merges channels.json metadata (NSFW flag, logo fallback) into M3U channel list
 export function enrichChannels(channels, metaMap) {
   if (!metaMap) return channels;
   return channels.map((ch) => {
@@ -152,7 +151,7 @@ export function enrichChannels(channels, metaMap) {
     return {
       ...ch,
       isNsfw: meta.is_nsfw || false,
-      logo: ch.logo || meta.logo || null,
+      logo:   ch.logo || meta.logo || null,
     };
   });
 }

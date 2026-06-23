@@ -1983,7 +1983,115 @@ input:focus,
 /* ── Live TV Page ──────────────────────────────────────────────────────────── */
 .live-tv-layout {
   display: flex;
+  flex-direction: column;
   height: calc(100vh - var(--tv-navbar-h));
+  overflow: hidden;
+}
+
+/* Language dropdown bar — country page only */
+.live-tv-lang-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px var(--tv-safe) 6px;
+}
+.live-tv-lang-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.live-tv-lang-drop { position: relative; }
+.live-tv-lang-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255,255,255,0.07);
+  color: var(--text);
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  min-width: 200px;
+  justify-content: space-between;
+  white-space: nowrap;
+  outline: none;
+}
+.live-tv-lang-trigger:hover,
+.live-tv-lang-trigger:focus,
+.live-tv-lang-trigger.open { border-color: var(--red); }
+.live-tv-lang-trigger.active {
+  background: color-mix(in srgb, var(--red) 20%, transparent);
+  border-color: var(--red);
+  color: #fff;
+}
+.live-tv-lang-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 240px;
+  max-height: 340px;
+  overflow-y: auto;
+  background: #1c1c1c;
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 10px;
+  z-index: 300;
+  padding: 4px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.7);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.2) transparent;
+}
+.live-tv-lang-search-wrap {
+  padding: 6px 6px 4px;
+}
+.live-tv-lang-search {
+  width: 100%;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 0.82rem;
+  padding: 6px 10px;
+  outline: none;
+}
+.live-tv-lang-search:focus { border-color: var(--red); }
+.live-tv-lang-option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 0.84rem;
+  padding: 7px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.live-tv-lang-option:hover,
+.live-tv-lang-option:focus { background: rgba(255,255,255,0.08); color: var(--text); outline: none; }
+.live-tv-lang-option.selected { background: color-mix(in srgb, var(--red) 25%, transparent); color: #fff; font-weight: 600; }
+.live-tv-lang-empty { color: var(--text-dim); font-size: 0.8rem; padding: 8px 12px; }
+.live-tv-lang-clear {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+.live-tv-lang-clear:hover { color: var(--text); }
+
+/* Main two-zone row (sidebar + panel) sits below language bar */
+.live-tv-main {
+  display: flex;
+  flex: 1;
   overflow: hidden;
 }
 
