@@ -4,9 +4,9 @@
 [![Issues](https://img.shields.io/github/issues/Rushikesh-Nivalkar/Rush-Flix?style=for-the-badge)](https://github.com/Rushikesh-Nivalkar/Rush-Flix/issues)
 [![License](https://img.shields.io/github/license/Rushikesh-Nivalkar/Rush-Flix?style=for-the-badge)](LICENSE)
 
-**Private Netflix-style streaming app built for Android TV, Google TV, Chromecast with Google TV, and Android phones.**
+**Private Netflix-style streaming app built for Android TV, Google TV, Chromecast with Google TV, Android phones, and LG Smart TVs (webOS).**
 
-Rush Flix is a self-hosted streaming app that aggregates metadata from TMDB and plays through third-party embed players. It ships as a single Capacitor Android APK — the same APK sideloads onto Android TV, Google TV, Chromecast with Google TV, and Android phones.
+Rush Flix is a self-hosted streaming app that aggregates metadata from TMDB and plays through third-party embed players. Each release ships both a Capacitor Android APK (Android TV, Google TV, Chromecast with Google TV, phones) and a webOS IPK (LG Smart TVs) from the same codebase and build.
 
 > **For personal/educational use only.** Rush Flix does not host, store, or distribute any video content. All playback is handled by third-party embed players outside the control of this project.
 
@@ -69,7 +69,7 @@ Rush Flix is a self-hosted streaming app that aggregates metadata from TMDB and 
 - Custom row-based D-pad navigation (tvNav.js) — replaced BBC lrud-spatial
 - TV-optimised full-screen layout — no mouse or touchscreen required
 - Android TV launcher banner with Rush Flix branding
-- Back button works everywhere — returns to previous screen from any page or player without exiting the app
+- Back button works everywhere — returns to previous screen from any page or player without exiting the app (LG remote Back key remapped automatically)
 - Media keys supported: Play/Pause, Fast Forward, Rewind
 - Focus management — cursor lands in the right place on every page transition
 - Source picker on the detail page — choose Videasy/VidSrc/2Embed before playback starts
@@ -148,6 +148,7 @@ When using Videasy, VidSrc, or 2Embed, playback runs inside a cross-origin ifram
 - **No parental lock PIN** — the age limit setting hides content but has no password protection
 - **No watch party or viewing sync with others**
 - **No built-in VPN or proxy**
+- **webOS updates require manual reinstall** — the LG TV IPK cannot be installed over-the-air; when a new version is available the app shows the download link and `ares-install` command to run from a computer
 
 ---
 
@@ -162,6 +163,34 @@ Rush Flix routes playback through three public embed players using TMDB IDs:
 | [2Embed](https://www.2embed.online) | ✅ | ✅ | Occasionally unstable |
 
 Switch sources from the picker bar above the player. If one source fails for a specific title, try the next.
+
+---
+
+## What's New — v2.6.0
+
+### LG Smart TV (webOS) Support
+- Rush Flix now runs natively on LG Smart TVs — every release ships both an APK (Android) and an IPK (webOS) built from the same codebase
+- LG remote Back button (keyCode 461) remapped to Escape globally — all existing D-pad and back navigation works without any changes
+- webOS platform detection (`isWebOS`) — the app adapts gracefully when not running inside Capacitor
+- Update dialog on webOS shows the IPK download link and the `ares-install` command instead of the Android auto-download flow (webOS sideloaded apps cannot auto-install)
+- New `npm run package:webos` script — builds the IPK in pure Node.js (no ares-package, no minification issues with pre-minified Vite output)
+
+### Build
+- v2.6.0 (versionCode 16)
+- Produces: `Rush-Flix_V2.6.0.apk` + `Rush-Flix_V2.6.0.ipk`
+
+---
+
+## What's New — v2.5.0
+
+### Update Checker: No More Rate Limit Errors
+- Switched from GitHub REST API (`api.github.com`) to the GitHub Atom feed — the REST API is capped at 60 requests/hour per shared IP, which multiple devices on the same home network could exhaust quickly. The Atom feed has no rate limit.
+
+### Live TV Cleanup
+- Reverted the channel detail/EPG page — iptv-org doesn't host a public EPG server so schedule data was never available. Clicking a channel now goes directly to the live player as before.
+
+### Build
+- v2.5.0 (versionCode 15)
 
 ---
 
@@ -256,7 +285,8 @@ Switch sources from the picker bar above the player. If one source fails for a s
 ## Requirements
 
 - A free [TMDB API Read Access Token](https://www.themoviedb.org/settings/api) — needed for metadata and search
-- An Android TV, Google TV, or Chromecast with Google TV device, or an Android phone running Android 7.0 or later *(for the APK)*
+- **Android**: An Android TV, Google TV, or Chromecast with Google TV device, or an Android phone running Android 7.0 or later
+- **webOS**: An LG Smart TV running webOS 3.x or later with Developer Mode enabled
 - Node.js ≥ 18
 
 ---
@@ -270,6 +300,38 @@ Switch sources from the picker bar above the player. If one source fails for a s
 3. Transfer the APK to your TV via USB drive, local network share, or a file manager app — then open and install it
 4. Launch **Rush Flix** from the TV apps list
 5. On first launch, enter your TMDB Read Access Token when prompted
+
+### Sideloading the IPK onto an LG Smart TV (webOS)
+
+> **One-time setup required** — enable Developer Mode on your TV and pair it with your computer once; after that, install and update with a single command.
+
+**1. Enable Developer Mode on your LG TV**
+
+- Go to **Settings → Support → About TV** (or **Settings → Support → TV Information**)
+- Press **OK** on the software version number **5 times** rapidly — a Developer Mode prompt appears
+- Enable it and note your TV's IP address (shown in **Settings → Network → Wi-Fi Connection → Advanced Settings**)
+
+**2. Set up ares-cli on your computer**
+
+```bash
+npm install -g @webosose/ares-cli
+ares-setup-device -a lgtv -i <TV-IP> -p 9922 -u developer
+```
+
+The TV will show a confirmation prompt the first time — accept it to exchange keys.
+
+**3. Install the IPK**
+
+1. Download **the latest `.ipk` file** from the [Releases page](https://github.com/Rushikesh-Nivalkar/Rush-Flix/releases)
+2. Run:
+   ```bash
+   ares-install -d lgtv Rush-Flix_V<version>.ipk
+   ```
+3. Rush Flix appears in the LG launcher — launch it from there
+
+**Updating:** When the app shows an update notification, download the new IPK from the link shown in the dialog and run `ares-install` again from your computer.
+
+---
 
 ### Sideloading the APK onto an Android Phone
 
@@ -319,6 +381,34 @@ Output: `android/app/build/outputs/apk/release/app-release.apk`
 
 > Requires `android/keystore.properties` (not committed — contains signing credentials).
 
+### Building the webOS IPK from Source
+
+```bash
+# 1. Build the web bundle (skip if already built for the APK — both share the same dist/)
+npm run build
+
+# 2. Package as webOS IPK (pure Node.js — no ares-cli required for packaging)
+npm run package:webos
+```
+
+Output: `Rush-Flix_V<version>.ipk` in the project root.
+
+Or build both APK and IPK in a single release run:
+
+```bash
+npm run build           # shared dist/
+npx cap copy android
+cd android && ./gradlew assembleRelease   # → app-release.apk
+cd ..
+npm run package:webos   # reuses dist/ → Rush-Flix_V<version>.ipk
+```
+
+To deploy directly to a paired LG TV:
+
+```bash
+npm run deploy:webos    # installs IPK and launches the app
+```
+
 ---
 
 ## First-Time Setup
@@ -340,6 +430,7 @@ Output: `android/app/build/outputs/apk/release/app-release.apk`
 | TV navigation | Custom row-based D-pad navigation (tvNav.js) |
 | Animations | [Motion](https://motion.dev/) |
 | Android wrapper | [Capacitor 8](https://capacitorjs.com/) |
+| webOS packaging | Pure Node.js IPK builder (scripts/package-webos.js) |
 | Movie/TV metadata | [TMDB API](https://developer.themoviedb.org/) |
 | Anime metadata | [AniList GraphQL API](https://anilist.gitbook.io/anilist-apiv2-docs/) |
 | Intro detection | [AniSkip API](https://aniskip.com/) |
@@ -382,6 +473,7 @@ Rush-Flix/
 │   │   ├── profiles.js           # Profile management
 │   │   ├── m3uParser.js          # M3U/M3U8 playlist parser — name, logo, group, country, language
 │   │   ├── updateChecker.js      # GitHub Releases version check + isNewerVersion helper
+│   │   ├── platform.js           # isWebOS / isCapacitorNative detection
 │   │   ├── aniSkip.js            # AniSkip intro/outro timings
 │   │   ├── subtitleFetch.js      # Subtitle URL fetching
 │   │   ├── lanSync.js            # LAN sync push/pull
@@ -398,8 +490,10 @@ Rush-Flix/
 │       └── TokenRelayServer.java # Local token relay for LAN sync
 ├── public/
 │   └── logo.svg                  # App favicon (vector)
+├── appinfo.json                  # webOS app manifest
 └── scripts/
-    └── gen-tv-banner.js          # Generates Android TV launcher banner PNG
+    ├── gen-tv-banner.js          # Generates Android TV launcher banner PNG
+    └── package-webos.js          # Builds webOS IPK from dist/ (pure Node.js, no ares-package)
 ```
 
 </details>

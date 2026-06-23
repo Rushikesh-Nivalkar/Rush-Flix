@@ -17,6 +17,7 @@ import {
 } from "./utils/profiles";
 import TVPlayer from "./components/TVPlayer";
 import { fetchLatestRelease, isNewerVersion, APP_VERSION } from "./utils/updateChecker";
+import { isWebOS } from "./utils/platform";
 import { App as CapApp } from "@capacitor/app";
 
 const HomePage = lazy(() => import("./pages/HomePage"));
@@ -28,6 +29,22 @@ const SourcesPage = lazy(() => import("./pages/SourcesPage"));
 const LiveTVPage = lazy(() => import("./pages/LiveTVPage"));
 
 export default function App() {
+  // ── webOS back button remap (keyCode 461 → Escape, dispatched on document) ─
+  // document.dispatchEvent reaches all capture listeners (dialogs, etc.) and then bubbles.
+  useEffect(() => {
+    if (!isWebOS) return;
+    const remap = (e) => {
+      if (e.keyCode === 461) {
+        e.stopImmediatePropagation();
+        document.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "Escape", keyCode: 27, which: 27, bubbles: true, cancelable: true })
+        );
+      }
+    };
+    window.addEventListener("keydown", remap, true);
+    return () => window.removeEventListener("keydown", remap, true);
+  }, []);
+
   // ── Profile state ─────────────────────────────────────────────────────────
   const [activeProfile, setActiveProfile] = useState(() => getActiveProfile());
   const pStore = useMemo(
@@ -45,8 +62,6 @@ export default function App() {
   // ── Navigation ────────────────────────────────────────────────────────────
   const [page, setPage] = useState(() => storage.get(STORAGE_KEYS.START_PAGE) || "home");
   const [liveCountry,  setLiveCountry]  = useState(() => storage.get(STORAGE_KEYS.LIVE_TV_COUNTRY)  || "");
-  const [liveCategory, setLiveCategory] = useState(() => storage.get(STORAGE_KEYS.LIVE_TV_CATEGORY) || "");
-  const [liveLanguage, setLiveLanguage] = useState(() => storage.get(STORAGE_KEYS.LIVE_TV_LANGUAGE) || "");
   const [selected, setSelected] = useState(null);
   const [navStack, setNavStack] = useState([]);
   const [showSearch, setShowSearch] = useState(false);
@@ -88,17 +103,9 @@ export default function App() {
   useTVNavigation({ onBack: handleBack });
 
   useEffect(() => {
-    const onCountry  = (e) => setLiveCountry(e.detail  || "");
-    const onCategory = (e) => setLiveCategory(e.detail || "");
-    const onLanguage = (e) => setLiveLanguage(e.detail || "");
-    window.addEventListener("liveCountryChanged",  onCountry);
-    window.addEventListener("liveCategoryChanged", onCategory);
-    window.addEventListener("liveLanguageChanged", onLanguage);
-    return () => {
-      window.removeEventListener("liveCountryChanged",  onCountry);
-      window.removeEventListener("liveCategoryChanged", onCategory);
-      window.removeEventListener("liveLanguageChanged", onLanguage);
-    };
+    const onCountry = (e) => setLiveCountry(e.detail || "");
+    window.addEventListener("liveCountryChanged", onCountry);
+    return () => window.removeEventListener("liveCountryChanged", onCountry);
   }, []);
 
   // ── Per-profile data (watchlist, history, progress, watched) ──────────────
@@ -303,6 +310,28 @@ export default function App() {
       });
     })();
     return () => { listener?.remove(); };
+  }, [navigateBack]);
+
+  // ── webOS keyboard back — Escape (produced by 461 remap above) → navigateBack ─
+  // Bubble phase so dialog capture listeners (with stopImmediatePropagation) win first.
+  useEffect(() => {
+    if (!isWebOS) return;
+    const handler = (e) => {
+      if (e.key !== "Escape") return;
+      if (window.__livePlayerActive) {
+        window.dispatchEvent(new CustomEvent("rushflix:closeLivePlayer"));
+        return;
+      }
+      if (window.__tvPlayerActive) {
+        window.dispatchEvent(new CustomEvent("rushflix:closeTVPlayer"));
+        return;
+      }
+      if (navStackRef.current.length > 0) {
+        navigateBack();
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
   }, [navigateBack]);
 
   // ── rushflix:backButton (TV remote back — fired by MainActivity custom event) ─
@@ -655,8 +684,6 @@ export default function App() {
           onSearch={() => setShowSearch(true)}
           activeProfile={activeProfile}
           liveCountry={liveCountry}
-          liveCategory={liveCategory}
-          liveLanguage={liveLanguage}
         />
 
         <div className="tv-main main lrud-container">
@@ -778,12 +805,6 @@ export default function App() {
             )}
             {page === "live-country" && (
               <LiveTVPage offline={offline} countryFilter={liveCountry} />
-            )}
-            {page === "live-category" && (
-              <LiveTVPage offline={offline} categoryFilter={liveCategory} />
-            )}
-            {page === "live-language" && (
-              <LiveTVPage offline={offline} languageFilter={liveLanguage} />
             )}
             {page === "player" && selected && (
               <TVPlayer

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useApkUpdater } from "../hooks/useApkUpdater";
 import { APP_VERSION } from "../utils/updateChecker";
+import { isWebOS } from "../utils/platform";
 
 /**
  * Update installation dialog — shared between HomePage and SettingsPage.
@@ -9,7 +10,7 @@ import { APP_VERSION } from "../utils/updateChecker";
  * Shows progress bar, handles permission_needed, error, and install states.
  * D-pad: Escape / GoBack → onDismiss()
  */
-export default function UpdateDialog({ latestVersion, apkUrl, releaseNotes, onDismiss }) {
+export default function UpdateDialog({ latestVersion, apkUrl, ipkUrl, releaseNotes, onDismiss }) {
   const updater = useApkUpdater();
   const primaryRef = useRef(null);
   const cancelRef = useRef(null);
@@ -76,6 +77,53 @@ export default function UpdateDialog({ latestVersion, apkUrl, releaseNotes, onDi
       ? `${(n / 1024).toFixed(0)} KB`
       : `${(n / 1048576).toFixed(1)} MB`;
   };
+
+  // ── webOS: can't auto-install IPK, show download link + ares-install hint ──
+  if (isWebOS) {
+    const latestClean = (latestVersion || "").replace(/^v/, "");
+    return (
+      <div
+        onClick={(e) => { if (e.target === e.currentTarget) onDismiss(); }}
+        style={{
+          position: "fixed", inset: 0, zIndex: 2000,
+          background: "rgba(0,0,0,0.82)", backdropFilter: "blur(8px)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            background: "var(--surface)", border: "1px solid var(--border)",
+            borderRadius: 14, padding: "36px 40px", maxWidth: 480, width: "90%",
+            boxShadow: "0 28px 72px rgba(0,0,0,0.65)",
+          }}
+        >
+          <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 12 }}>Update Available</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+            <code style={{ fontSize: 13, color: "var(--text3)", background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: 6, padding: "3px 10px" }}>v{APP_VERSION}</code>
+            <span style={{ color: "var(--text3)" }}>→</span>
+            <code style={{ fontSize: 14, fontWeight: 700, color: "var(--text)", background: "rgba(229,9,20,0.12)", border: "1px solid rgba(229,9,20,0.3)", borderRadius: 6, padding: "3px 10px" }}>{latestVersion}</code>
+          </div>
+          {releaseNotes ? (
+            <div style={{ fontSize: 13, color: "var(--text2)", lineHeight: 1.6, marginBottom: 20, maxHeight: 80, overflowY: "auto", background: "var(--surface2)", borderRadius: 8, padding: "10px 14px", border: "1px solid var(--border)", whiteSpace: "pre-wrap" }}>{releaseNotes}</div>
+          ) : null}
+          <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 12 }}>
+            Download the IPK and install from your computer:
+          </div>
+          <code style={{ display: "block", fontSize: 12, background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 14px", marginBottom: 16, color: "var(--red)", wordBreak: "break-all" }}>
+            ares-install Rush-Flix_V{latestClean}.ipk
+          </code>
+          {ipkUrl && (
+            <a href={ipkUrl} target="_blank" rel="noreferrer"
+              style={{ display: "block", fontSize: 12, color: "var(--red)", marginBottom: 20, wordBreak: "break-all" }}>
+              Download Rush-Flix_V{latestClean}.ipk from GitHub
+            </a>
+          )}
+          <button ref={cancelRef} className="btn btn-ghost tv-focusable" onClick={onDismiss}>Dismiss</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

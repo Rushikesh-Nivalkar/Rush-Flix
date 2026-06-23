@@ -55,13 +55,14 @@ export async function fetchLatestRelease() {
   const latest = `v${latestClean}`;
 
   const apkUrl = `https://github.com/Rushikesh-Nivalkar/Rush-Flix/releases/download/${latest}/Rush-Flix_V${latestClean}.apk`;
+  const ipkUrl = `https://github.com/Rushikesh-Nivalkar/Rush-Flix/releases/download/${latest}/Rush-Flix_V${latestClean}.ipk`;
 
   const rawNotes = firstEntry.querySelector("content")?.textContent ||
                    firstEntry.querySelector("summary")?.textContent || "";
   const releaseNotes = new DOMParser().parseFromString(rawNotes, "text/html")
     .body?.textContent?.trim() || "";
 
-  return { latest, apkUrl, releaseNotes };
+  return { latest, apkUrl, ipkUrl, releaseNotes };
 }
 
 /**

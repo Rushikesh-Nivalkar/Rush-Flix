@@ -1,0 +1,12 @@
+{
+  "id": "com.rushflix.app",
+  "version": "2.6.0",
+  "vendor": "Rushikesh Nivalkar",
+  "type": "web",
+  "main": "index.html",
+  "title": "Rush Flix",
+  "icon": "icon.png",
+  "bgColor": "#0a0a0a",
+  "iconColor": "#0a0a0a",
+  "requiredPermissions": ["NETWORKED_APP", "ALLOW_CROSS_DOMAIN_REQUEST"]
+}

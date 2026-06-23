@@ -460,6 +460,7 @@ export default function HomePage({
         <UpdateDialog
           latestVersion={updateInfo.latest}
           apkUrl={updateInfo.apkUrl}
+          ipkUrl={updateInfo.ipkUrl}
           releaseNotes={updateInfo.releaseNotes}
           onDismiss={() => setShowUpdateDialog(false)}
         />

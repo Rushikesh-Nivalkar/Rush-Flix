@@ -1,6 +1,6 @@
 {
   "name": "rush-flix",
-  "version": "2.5.0",
+  "version": "2.6.0",
   "description": "Rush Flix — private Netflix-style TV app for Chromecast, Google TV, Android TV",
   "private": true,
   "scripts": {
@@ -10,7 +10,10 @@
     "serve": "vite preview --host",
     "fresh": "vite build && vite preview --host",
     "android": "npm run build && npx cap copy android && npx cap open android",
-    "deploy": "npm run build && npx cap copy android && android\\gradlew.bat assembleDebug -p android && \"%LOCALAPPDATA%\\Android\\Sdk\\platform-tools\\adb.exe\" -s 10.10.10.85:43645 install -r android\\app\\build\\outputs\\apk\\debug\\app-debug.apk"
+    "deploy": "npm run build && npx cap copy android && android\\gradlew.bat assembleDebug -p android && \"%LOCALAPPDATA%\\Android\\Sdk\\platform-tools\\adb.exe\" -s 10.10.10.85:43645 install -r android\\app\\build\\outputs\\apk\\debug\\app-debug.apk",
+    "package:webos": "node scripts/package-webos.js",
+    "build:webos": "vite build && node scripts/package-webos.js",
+    "deploy:webos": "ares-install -d lgtv Rush-Flix_V%npm_package_version%.ipk && ares-launch -d lgtv com.rushflix.app"
   },
   "dependencies": {
     "@bbc/tv-lrud-spatial": "^0.0.16",
