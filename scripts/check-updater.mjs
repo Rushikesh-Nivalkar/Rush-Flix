@@ -81,10 +81,15 @@ try {
 
   const ws = new WebSocket(target.webSocketDebuggerUrl);
   await new Promise((r, j) => { ws.onopen = r; ws.onerror = j; });
-  const reply = await new Promise((resolve) => {
-    ws.onmessage = (e) => { const m = JSON.parse(e.data); if (m.id === 1) resolve(m.result); };
+  let msgId = 0;
+  const evaluate = () => new Promise((resolve) => {
+    const id = ++msgId;
+    ws.onmessage = (e) => {
+      const m = JSON.parse(e.data);
+      if (m.id === id) resolve(m.error ? { protocolError: m.error } : m.result);
+    };
     ws.send(JSON.stringify({
-      id: 1,
+      id,
       method: "Runtime.evaluate",
       params: {
         awaitPromise: true,
@@ -98,11 +103,19 @@ try {
       },
     }));
   });
+  // The page may still be navigating when we first connect ("Execution context
+  // was destroyed") — retry instead of reporting a false failure.
+  let reply;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    reply = await evaluate();
+    if (!/context/i.test(reply?.protocolError?.message || "")) break;
+    await new Promise((r) => setTimeout(r, 500));
+  }
   ws.close();
   if (reply?.exceptionDetails)
     throw new Error(`browser error: ${reply.exceptionDetails.exception?.description || reply.exceptionDetails.text}`);
   result = reply?.result?.value;
-  if (!result) throw new Error(`unexpected browser reply: ${JSON.stringify(reply).slice(0, 300)}`);
+  if (!result) throw new Error(`unexpected browser reply: ${String(JSON.stringify(reply ?? null)).slice(0, 300)}`);
 } catch (e) {
   cleanup();
   fail(e.message);
