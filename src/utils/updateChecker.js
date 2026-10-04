@@ -1,10 +1,13 @@
 /* global __APP_VERSION__ */
 
 export const APP_VERSION =
-  typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "2.7.0";
+  typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "2.7.1";
 
-const GITHUB_ATOM_URL =
-  "https://github.com/Rushikesh-Nivalkar/Rush-Flix/releases.atom";
+// Must be api.github.com: it sends Access-Control-Allow-Origin: *. The
+// github.com/releases.atom feed (used in v2.5.0–v2.7.0) sends no CORS header,
+// so fetch() from the app WebView fails and the update check never works.
+const GITHUB_RELEASES_URL =
+  "https://api.github.com/repos/Rushikesh-Nivalkar/Rush-Flix/releases/latest";
 
 /** Parse "vX.Y.Z" or "X.Y.Z" → [major, minor, patch]. Returns [0,0,0] on failure. */
 function parseSemver(str) {
@@ -23,46 +26,44 @@ export function isNewerVersion(versionA, versionB) {
 }
 
 /**
- * Fetch the latest GitHub release via Atom feed (no API rate limits).
- * Returns { latest, apkUrl, releaseNotes }.
+ * Fetch the latest GitHub release. Returns { latest, apkUrl, ipkUrl, releaseNotes }.
  * Throws a human-readable Error on any failure.
+ * Rate limit is 60 requests/hour per IP — fine for the 6h startup cooldown
+ * plus manual checks.
  */
 export async function fetchLatestRelease() {
   let res;
   try {
-    res = await fetch(GITHUB_ATOM_URL, { signal: AbortSignal.timeout(10000) });
+    res = await fetch(GITHUB_RELEASES_URL, {
+      headers: { Accept: "application/vnd.github+json" },
+      signal: AbortSignal.timeout(10000),
+    });
   } catch {
     throw new Error("Could not reach GitHub. Check internet connection.");
   }
+  if (res.status === 403 || res.status === 429)
+    throw new Error("GitHub rate limit hit. Try again in an hour.");
+  if (res.status === 404)
+    throw new Error("No releases found on GitHub.");
   if (!res.ok)
     throw new Error(`GitHub returned status ${res.status}.`);
 
-  let text;
-  try { text = await res.text(); }
+  let data;
+  try { data = await res.json(); }
   catch { throw new Error("Invalid response from GitHub."); }
 
-  const doc = new DOMParser().parseFromString(text, "text/xml");
-  if (doc.querySelector("parsererror"))
-    throw new Error("Invalid response from GitHub.");
+  const latest = data.tag_name || "";
+  const latestClean = latest.replace(/^v/, "");
+  const findAsset = (name) => (data.assets || []).find(
+    (a) => a.name?.toLowerCase() === name.toLowerCase()
+  )?.browser_download_url ?? null;
 
-  const firstEntry = doc.querySelector("entry");
-  if (!firstEntry) throw new Error("No releases found on GitHub.");
-
-  const titleText = firstEntry.querySelector("title")?.textContent?.trim() || "";
-  const vMatch = titleText.match(/v?(\d+\.\d+\.\d+)/);
-  if (!vMatch) throw new Error("No releases found on GitHub.");
-  const latestClean = vMatch[1];
-  const latest = `v${latestClean}`;
-
-  const apkUrl = `https://github.com/Rushikesh-Nivalkar/Rush-Flix/releases/download/${latest}/Rush-Flix_V${latestClean}.apk`;
-  const ipkUrl = `https://github.com/Rushikesh-Nivalkar/Rush-Flix/releases/download/${latest}/Rush-Flix_V${latestClean}.ipk`;
-
-  const rawNotes = firstEntry.querySelector("content")?.textContent ||
-                   firstEntry.querySelector("summary")?.textContent || "";
-  const releaseNotes = new DOMParser().parseFromString(rawNotes, "text/html")
-    .body?.textContent?.trim() || "";
-
-  return { latest, apkUrl, ipkUrl, releaseNotes };
+  return {
+    latest,
+    apkUrl: findAsset(`Rush-Flix_V${latestClean}.apk`),
+    ipkUrl: findAsset(`Rush-Flix_V${latestClean}.ipk`),
+    releaseNotes: (data.body || "").trim(),
+  };
 }
 
 /**

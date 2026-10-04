@@ -166,6 +166,18 @@ Switch sources from the picker bar above the player. If one source fails for a s
 
 ---
 
+## What's New — v2.7.1
+
+### Update Checker Fixed
+- **Check for updates works again.** v2.5.0 switched the checker to GitHub's `releases.atom` feed, which doesn't allow requests from inside the app (no CORS header), so the check always failed with "Could not reach GitHub". It's back on the GitHub Releases API, which does.
+- If you're on v2.5.0–v2.7.0, install this update manually once (download `Rush-Flix_V2.7.1.apk` from the Releases page); after that, updates arrive in-app again.
+
+### Build
+- v2.7.1 (versionCode 18)
+- Produces: `Rush-Flix_V2.7.1.apk` + `Rush-Flix_V2.7.1.ipk`
+
+---
+
 ## What's New — v2.7.0
 
 ### Player Sources
