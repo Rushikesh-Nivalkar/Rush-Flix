@@ -1,7 +1,7 @@
 /* global __APP_VERSION__ */
 
 export const APP_VERSION =
-  typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "2.7.1";
+  typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "2.7.2";
 
 // Must be api.github.com: it sends Access-Control-Allow-Origin: *. The
 // github.com/releases.atom feed (used in v2.5.0–v2.7.0) sends no CORS header,
@@ -25,6 +25,43 @@ export function isNewerVersion(versionA, versionB) {
   return aPat > bPat;
 }
 
+const REQUEST_HEADERS = { Accept: "application/vnd.github+json" };
+const TIMEOUT_MS = 10000;
+
+// Android app: native HTTP, which WebView CORS rules can't block.
+// Returns null off-native so the caller falls back to fetch.
+async function requestNative() {
+  const { Capacitor, CapacitorHttp } = await import("@capacitor/core");
+  if (!Capacitor.isNativePlatform()) return null;
+  const res = await CapacitorHttp.request({
+    method: "GET",
+    url: GITHUB_RELEASES_URL,
+    headers: REQUEST_HEADERS,
+    connectTimeout: TIMEOUT_MS,
+    readTimeout: TIMEOUT_MS,
+    responseType: "json",
+  });
+  let data = res.data;
+  if (typeof data === "string") {
+    try { data = JSON.parse(data); } catch { data = null; }
+  }
+  return { status: res.status, data };
+}
+
+// Browser / webOS. AbortController + setTimeout instead of AbortSignal.timeout,
+// which older Android TV WebViews (pre-Chrome 103) don't have.
+async function requestWeb() {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  try {
+    const res = await fetch(GITHUB_RELEASES_URL, { headers: REQUEST_HEADERS, signal: ctrl.signal });
+    const data = res.ok ? await res.json().catch(() => null) : null;
+    return { status: res.status, data };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * Fetch the latest GitHub release. Returns { latest, apkUrl, ipkUrl, releaseNotes }.
  * Throws a human-readable Error on any failure.
@@ -32,25 +69,22 @@ export function isNewerVersion(versionA, versionB) {
  * plus manual checks.
  */
 export async function fetchLatestRelease() {
-  let res;
-  try {
-    res = await fetch(GITHUB_RELEASES_URL, {
-      headers: { Accept: "application/vnd.github+json" },
-      signal: AbortSignal.timeout(10000),
-    });
-  } catch {
-    throw new Error("Could not reach GitHub. Check internet connection.");
+  let res = null;
+  try { res = await requestNative(); } catch { res = null; } // native failed → try fetch
+  if (!res) {
+    try { res = await requestWeb(); }
+    catch { throw new Error("Could not reach GitHub. Check internet connection."); }
   }
   if (res.status === 403 || res.status === 429)
     throw new Error("GitHub rate limit hit. Try again in an hour.");
   if (res.status === 404)
     throw new Error("No releases found on GitHub.");
-  if (!res.ok)
+  if (res.status < 200 || res.status >= 300)
     throw new Error(`GitHub returned status ${res.status}.`);
 
-  let data;
-  try { data = await res.json(); }
-  catch { throw new Error("Invalid response from GitHub."); }
+  const data = res.data;
+  if (!data || typeof data !== "object")
+    throw new Error("Invalid response from GitHub.");
 
   const latest = data.tag_name || "";
   const latestClean = latest.replace(/^v/, "");

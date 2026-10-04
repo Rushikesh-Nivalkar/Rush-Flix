@@ -166,6 +166,19 @@ Switch sources from the picker bar above the player. If one source fails for a s
 
 ---
 
+## What's New — v2.7.2
+
+### Update Checker Hardened
+- **Android app checks for updates over native HTTP**, which browser cross-origin (CORS) rules can't block, so a GitHub-side change can't silently break the button again. Browser / LG webOS keep using the GitHub API, which allows cross-origin requests.
+- Update-check timeout no longer needs `AbortSignal.timeout`, so it also works on older Android TV WebViews.
+- New `npm run check:updater`: runs the real update check in headless Chrome from a different origin and fails unless it finds the expected release with its APK + IPK. Run it after every release.
+
+### Build
+- v2.7.2 (versionCode 19)
+- Produces: `Rush-Flix_V2.7.2.apk` + `Rush-Flix_V2.7.2.ipk`
+
+---
+
 ## What's New — v2.7.1
 
 ### Update Checker Fixed
