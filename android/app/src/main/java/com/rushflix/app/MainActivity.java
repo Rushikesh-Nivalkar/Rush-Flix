@@ -42,6 +42,9 @@ public class MainActivity extends BridgeActivity {
     //   (Java interfaces are exposed to all frames)
     // - window.__rfCmd(action, value) applies toggle / seek_rel / seek_abs to this
     //   frame's video and relays the command to every child frame via postMessage
+    // - each command carries an id and is applied once per frame: embed pages
+    //   (Cineby / vsembed) also forward parent messages to their player frame, so
+    //   without the id a toggle arrived twice (pause → instant resume)
     private static final String PLAYER_SCRIPT =
         "(function(){" +
         "if(window.__rfInit)return;window.__rfInit=1;" +
@@ -55,14 +58,18 @@ public class MainActivity extends BridgeActivity {
         "if(v.readyState>=1)v.currentTime=x;" +
         "else v.addEventListener('loadedmetadata',function(){v.currentTime=x;},{once:true});}" +
         "}" +
-        "function relay(a,x){" +
+        "function relay(a,x,id){" +
         "var f=document.querySelectorAll('iframe');" +
         "for(var i=0;i<f.length;i++){" +
-        "try{f[i].contentWindow.postMessage({__rf:1,action:a,value:x},'*');}catch(e){}}" +
+        "try{f[i].contentWindow.postMessage({__rf:1,action:a,value:x,id:id},'*');}catch(e){}}" +
         "}" +
-        "window.__rfCmd=function(a,x){apply(a,x);relay(a,x);};" +
+        "var lastId=null;" +
+        "window.__rfCmd=function(a,x,id){" +
+        "id=id||(Date.now()+'-'+Math.random());" +
+        "if(id===lastId)return;lastId=id;" +
+        "apply(a,x);relay(a,x,id);};" +
         "window.addEventListener('message',function(e){" +
-        "var d=e.data;if(d&&d.__rf===1)window.__rfCmd(d.action,d.value);});" +
+        "var d=e.data;if(d&&d.__rf===1)window.__rfCmd(d.action,d.value,d.id);});" +
         "function setup(n){" +
         "if(v===n)return;v=n;window._rushflixVideo=n;" +
         "n.play().catch(function(){});" +

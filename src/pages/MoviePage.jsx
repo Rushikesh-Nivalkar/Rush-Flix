@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   tmdbFetch, imgUrl, fetchAnilistData, cleanAnilistDescription,
-  isAnimeContent, resolveSourceId, getSourceUrl, PLAYER_SOURCES,
+  isAnimeContent, getSourceUrl,
 } from "../utils/api";
 import {
   PlayIcon, BookmarkIcon, BookmarkFillIcon, BackIcon,
@@ -9,7 +9,7 @@ import {
 } from "../components/Icons";
 import TrailerModal from "../components/TrailerModal";
 import MediaCard from "../components/MediaCard";
-import { storage, STORAGE_KEYS } from "../utils/storage";
+import { storage } from "../utils/storage";
 import { fetchMovieRating, isRestricted, getAgeLimitSetting, getRatingCountry } from "../utils/ageRating";
 import TVPlayer from "../components/TVPlayer";
 
@@ -37,10 +37,6 @@ export default function MoviePage({
   const [similar, setSimilar] = useState([]);
   const [ageRating, setAgeRating] = useState(null);
   const [anilistData, setAnilistData] = useState(null);
-  const [playerSource, setPlayerSource] = useState(
-    () => resolveSourceId(storage.get(STORAGE_KEYS.PLAYER_SOURCE)),
-  );
-  const [selectedLang, setSelectedLang] = useState(null);
 
   const pageRef = useRef(null);
   useEffect(() => {
@@ -73,11 +69,6 @@ export default function MoviePage({
         if (trailer) setTrailerKey(trailer.key);
         // Similar
         setSimilar((data.similar?.results || []).slice(0, 12).map((m) => ({ ...m, media_type: "movie" })));
-        setSelectedLang((prev) =>
-          prev === null && data.spoken_languages?.length > 0
-            ? data.spoken_languages[0].iso_639_1
-            : prev
-        );
       })
       .catch(() => {});
     return () => { mounted = false; };
@@ -123,7 +114,6 @@ export default function MoviePage({
     : details?.overview;
 
   const restricted = isRestricted(ageRating?.minAge, getAgeLimitSetting(storage));
-  const spokenLangs = details?.spoken_languages || [];
 
   if (playing) {
     return (
@@ -138,13 +128,7 @@ export default function MoviePage({
         apiKey={apiKey}
         tmdbId={item.id}
         mediaType="movie"
-        prefilledUrl={getSourceUrl(playerSource, "movie", item.id, undefined, undefined, selectedLang)}
-        playerSource={playerSource}
-        onSourceChange={(src) => {
-          setPlayerSource(src);
-          storage.set(STORAGE_KEYS.PLAYER_SOURCE, src);
-        }}
-        preferredLang={selectedLang}
+        prefilledUrl={getSourceUrl("movie", item.id)}
         skipGate={true}
       />
     );
@@ -188,36 +172,6 @@ export default function MoviePage({
               </div>
             )}
             <div className="detail-overview">{overview}</div>
-            <div className="source-picker-bar" style={{ marginBottom: "16px" }}>
-              {PLAYER_SOURCES.map((src) => (
-                <button
-                  key={src.id}
-                  className={`tv-btn source-picker-btn tv-focusable${playerSource === src.id ? " tv-btn-primary" : " tv-btn-ghost"}`}
-                  tabIndex={0}
-                  onClick={() => {
-                    setPlayerSource(src.id);
-                    storage.set(STORAGE_KEYS.PLAYER_SOURCE, src.id);
-                  }}
-                >
-                  {src.label}
-                  {src.note && <span className="source-picker-note">({src.note})</span>}
-                </button>
-              ))}
-            </div>
-            {spokenLangs.length > 1 && (
-              <div className="source-picker-bar" style={{ marginBottom: "16px" }}>
-                {spokenLangs.map((l) => (
-                  <button
-                    key={l.iso_639_1}
-                    className={`tv-btn source-picker-btn tv-focusable${selectedLang === l.iso_639_1 ? " tv-btn-primary" : " tv-btn-ghost"}`}
-                    tabIndex={0}
-                    onClick={() => setSelectedLang(l.iso_639_1)}
-                  >
-                    {l.english_name}
-                  </button>
-                ))}
-              </div>
-            )}
             <div className="detail-actions">
               {!restricted && (
                 <button className="tv-btn tv-btn-primary tv-focusable" tabIndex={0} onClick={handlePlay}>

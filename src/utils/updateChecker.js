@@ -1,7 +1,7 @@
 /* global __APP_VERSION__ */
 
 export const APP_VERSION =
-  typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "2.7.2";
+  typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "2.7.3";
 
 // Must be api.github.com: it sends Access-Control-Allow-Origin: *. The
 // github.com/releases.atom feed (used in v2.5.0–v2.7.0) sends no CORS header,

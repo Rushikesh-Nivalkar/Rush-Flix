@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { storage, STORAGE_KEYS, getCurrentPStore } from "../utils/storage";
-import { PLAYER_SOURCES, getSourceUrl, resolveSourceId, checkSourceRedirect, SOURCE_OVERRIDES_KEY } from "../utils/api";
+import { getSourceUrl, checkSourceRedirect, saveSourceRedirect } from "../utils/api";
 import { fetchAniSkipTimings } from "../utils/aniSkip";
 import { fetchSubtitleUrl, revokeSubtitleUrl } from "../utils/subtitleFetch";
 import { SUBTITLE_LANGUAGES } from "../utils/subtitles";
@@ -27,9 +27,6 @@ export default function TVPlayer({
   season,
   episode,
   prefilledUrl = "",
-  playerSource = null,
-  onSourceChange = null,
-  preferredLang = null,
   // Episode navigation
   episodeList = [],
   currentEpIndex = -1,
@@ -49,7 +46,6 @@ export default function TVPlayer({
     const initUrl = prefilledUrl || (storage.get(STORAGE_KEYS.CUSTOM_SOURCES) || {})[progressKey] || "";
     return detectMode(initUrl);
   });
-  const [activeSource, setActiveSource] = useState(() => resolveSourceId(playerSource));
   const [buffering, setBuffering] = useState(false);
   const [videoError, setVideoError] = useState(false);
   const [showEpList, setShowEpList] = useState(false);
@@ -252,25 +248,19 @@ export default function TVPlayer({
   // Reset iframe gate on source/url change so the Watch button reappears.
   useEffect(() => { if (!skipGate) setIframeActive(false); }, [url, skipGate]);
 
-  // APK only: probe current source base URL for redirects. If domain changed,
-  // silently save new base to localStorage and reload player URL. Transparent to user.
+  // APK only: probe the player's base URL for redirects. If the domain changed,
+  // silently save the new base and reload the player URL. Transparent to user.
   useEffect(() => {
     if (mode !== "iframe" || !tmdbId) return;
     let cancelled = false;
-    checkSourceRedirect(activeSource).then((newOrigin) => {
-      if (cancelled || !newOrigin) return;
-      try {
-        const overrides = JSON.parse(localStorage.getItem(SOURCE_OVERRIDES_KEY) || "{}");
-        if (overrides[activeSource] === newOrigin) return;
-        overrides[activeSource] = newOrigin;
-        localStorage.setItem(SOURCE_OVERRIDES_KEY, JSON.stringify(overrides));
-        const newUrl = getSourceUrl(activeSource, mediaType, tmdbId, season, episode);
-        console.log(`[RF] redirect auto-update: ${activeSource} → ${newOrigin} | url="${newUrl}"`);
-        setUrl(newUrl);
-      } catch {}
+    checkSourceRedirect().then((newOrigin) => {
+      if (cancelled || !newOrigin || !saveSourceRedirect(newOrigin)) return;
+      const newUrl = getSourceUrl(mediaType, tmdbId, season, episode);
+      console.log(`[RF] redirect auto-update: → ${newOrigin} | url="${newUrl}"`);
+      setUrl(newUrl);
     });
     return () => { cancelled = true; };
-  }, [activeSource]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-focus iframe on mount so TV D-pad input hits the embedded player immediately.
   useEffect(() => {
@@ -279,10 +269,10 @@ export default function TVPlayer({
     return () => clearTimeout(t);
   }, [mode, url]);
 
-  // Debug: log url/mode/source on every change
+  // Debug: log url/mode on every change
   useEffect(() => {
-    console.log(`[RF] state url="${url}" mode=${mode} source=${activeSource} bridge=${!!window.RushFlixBridge} skipGate=${skipGate} iframeActive=${iframeActive}`);
-  }, [url, mode, activeSource, skipGate, iframeActive]);
+    console.log(`[RF] state url="${url}" mode=${mode} bridge=${!!window.RushFlixBridge} skipGate=${skipGate} iframeActive=${iframeActive}`);
+  }, [url, mode, skipGate, iframeActive]);
 
   // Open native overlay WebView when an embed URL is active (APK only).
   // Falls back gracefully — browser keeps using the <iframe> below.
@@ -395,19 +385,6 @@ export default function TVPlayer({
     setMode(detectMode(target));
     setVideoError(false);
     positionRestored.current = false;
-  }
-
-  function handleSourceChange(srcId) {
-    const saved = storage.get(STORAGE_KEYS.CUSTOM_SOURCES) || {};
-    if (saved[progressKey]) { delete saved[progressKey]; storage.set(STORAGE_KEYS.CUSTOM_SOURCES, saved); }
-    const newUrl = getSourceUrl(srcId, mediaType, tmdbId, season, episode, preferredLang);
-    console.log(`[RF] source change: ${activeSource} → ${srcId} | url="${newUrl}"`);
-    setUrl(newUrl);
-    setMode(detectMode(newUrl));
-    setActiveSource(srcId);
-    setVideoError(false);
-    positionRestored.current = false;
-    onSourceChange?.(srcId);
   }
 
   // ── Up Next overlay ────────────────────────────────────────────────────────
@@ -535,21 +512,6 @@ export default function TVPlayer({
       {/* ── Native video player ──────────────────────────────────────────── */}
       {mode === "video" && (
         <div className="tv-video-wrap">
-          {PLAYER_SOURCES.length > 1 && (
-            <div className="source-picker-bar">
-              {PLAYER_SOURCES.map((src) => (
-                <button
-                  key={src.id}
-                  className={`tv-btn source-picker-btn${activeSource === src.id ? " tv-btn-primary" : " tv-btn-ghost"}`}
-                  tabIndex={0}
-                  onClick={() => handleSourceChange(src.id)}
-                >
-                  {src.label}
-                  {src.note && <span className="source-picker-note">({src.note})</span>}
-                </button>
-              ))}
-            </div>
-          )}
           <video
             ref={videoRef}
             className="tv-video"

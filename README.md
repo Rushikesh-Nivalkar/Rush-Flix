@@ -24,7 +24,7 @@ Rush Flix is a self-hosted streaming app that aggregates metadata from TMDB and 
 
 ### Playback
 - Stream movies and TV episodes through embedded players (no account required on those services)
-- Three switchable player sources: **Cineby**, **VidSrc**, **2Embed** — pick on detail page before playback, or switch mid-session
+- Plays through the **Cineby** embed player — press Watch and it starts, no source to pick
 - D-pad navigation fully supported on Android TV remotes (up/down/left/right/select/back)
 - Skip forward/back **±10 seconds** using left/right D-pad while a video is playing
 - Autoplay on episode/movie open — no manual play button tap required on Android TV
@@ -72,7 +72,6 @@ Rush Flix is a self-hosted streaming app that aggregates metadata from TMDB and 
 - Back button works everywhere — returns to previous screen from any page or player without exiting the app (LG remote Back key remapped automatically)
 - Media keys supported: Play/Pause, Fast Forward, Rewind
 - Focus management — cursor lands in the right place on every page transition
-- Source picker on the detail page — choose Cineby/VidSrc/2Embed before playback starts
 - Settings: 5-tab sidebar (Playback / Subtitles / Interface / Library / Data), fully D-pad navigable
 - QR key pairing — scan from phone to set TMDB, Wyzie, or SubDL API keys on TV
 - Genre rows: dynamic TMDB genre dropdown, Left/Right D-pad to cycle genres
@@ -119,13 +118,14 @@ Rush Flix is a self-hosted streaming app that aggregates metadata from TMDB and 
 
 ### Content Limitations
 - **Cannot download content** — no offline viewing, no download queue
-- **Playback not guaranteed for streaming exclusives** — Rush Flix shows listings for all TMDB titles (including Netflix Originals, Amazon Exclusives, Disney+ titles), but the embed players (VidSrc, Cineby, 2Embed) may not have working streams for content that platforms exclusively distribute under DRM; try all three sources before concluding a title is unavailable
-- **Cannot guarantee a working source** — embed players go down, get blocked, or change URLs; if all three sources fail for a title there is no further fallback beyond manually switching
+- **Playback not guaranteed for streaming exclusives** — Rush Flix shows listings for all TMDB titles (including Netflix Originals, Amazon Exclusives, Disney+ titles), but the Cineby embed player may not have working streams for content that platforms exclusively distribute under DRM
+- **Cannot guarantee a working source** — embed players go down, get blocked, or change URLs; Rush Flix follows Cineby domain moves automatically, but if Cineby itself is down there is no fallback player
+- **No audio-language choice** — Cineby ignores language requests, so playback uses whatever audio the player provides
 - **Cannot bypass regional restrictions** — if an embed player geo-blocks content in your country, Rush Flix cannot work around it; a VPN at the OS or router level is needed
 - **Cannot control video quality** — resolution, bitrate, and codec are entirely up to the third-party embed player; Rush Flix cannot force 4K or HDR
 
 ### Iframe Embed Player Limitations
-When using VidSrc, Cineby, or 2Embed, playback runs inside a cross-origin iframe. Browser security restrictions prevent Rush Flix from fully controlling the player:
+Cineby playback runs inside a cross-origin iframe. Browser security restrictions prevent Rush Flix from fully controlling the player:
 
 - **No subtitles** — subtitle fetching only works in direct video (MP4/HLS) mode
 - **No AniSkip intro detection** — only works in direct video mode
@@ -154,15 +154,27 @@ When using VidSrc, Cineby, or 2Embed, playback runs inside a cross-origin iframe
 
 ## Streaming Sources
 
-Rush Flix routes playback through three public embed players using TMDB IDs:
+Rush Flix plays everything through one public embed player, looked up by TMDB ID:
 
 | Source | Movies | TV Episodes | Notes |
 |---|---|---|---|
-| [Cineby](https://api.cineby.homes) | ✅ | ✅ | Default |
-| [VidSrc](https://vidsrc.to) | ✅ | ✅ | Good fallback — loads the player directly from `vsembed.ru` |
-| [2Embed](https://www.2embed.online) | ✅ | ✅ | Occasionally unstable |
+| [Cineby](https://api.cineby.homes) | ✅ | ✅ | Only source since v2.7.3; domain moves are followed automatically in the Android app |
 
-Switch sources from the picker bar above the player. If one source fails for a specific title, try the next.
+---
+
+## What's New — v2.7.3
+
+### Pause Works on Android TV
+- **OK / Play-Pause on the remote now pauses.** The Cineby player page forwards remote commands to its inner player frame, and Rush Flix forwarded them too, so each command arrived twice (pause → instant resume). Every command now carries an ID and is applied once.
+- The same double delivery made each seek jump 20 seconds instead of 10. Fixed.
+
+### Simpler Player Setup
+- **Source picker removed — Cineby only.** VidSrc turned out to be the same player as Cineby on a different domain, and 2Embed was unstable.
+- **Language picker removed.** Cineby ignores the language setting, so the buttons did nothing.
+
+### Build
+- v2.7.3 (versionCode 20)
+- Produces: `Rush-Flix_V2.7.3.apk` + `Rush-Flix_V2.7.3.ipk`
 
 ---
 

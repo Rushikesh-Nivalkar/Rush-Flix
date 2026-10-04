@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import {
   tmdbFetch, imgUrl, fetchAnilistData,
   cleanAnilistDescription, isAnimeContent,
-  getSourceUrl, PLAYER_SOURCES, resolveSourceId,
+  getSourceUrl,
 } from "../utils/api";
 import {
   PlayIcon, BookmarkIcon, BookmarkFillIcon, BackIcon,
@@ -10,7 +10,7 @@ import {
 } from "../components/Icons";
 import TrailerModal from "../components/TrailerModal";
 import { isRestricted, getAgeLimitSetting } from "../utils/ageRating";
-import { storage, STORAGE_KEYS } from "../utils/storage";
+import { storage } from "../utils/storage";
 import TVPlayer from "../components/TVPlayer";
 
 export default function TVPage({
@@ -30,10 +30,6 @@ export default function TVPage({
   const [showTrailer, setShowTrailer] = useState(false);
   const [ageRating, setAgeRating] = useState(null);
   const [anilistData, setAnilistData] = useState(null);
-  const [playerSource, setPlayerSource] = useState(
-    () => resolveSourceId(storage.get(STORAGE_KEYS.PLAYER_SOURCE)),
-  );
-  const [selectedLang, setSelectedLang] = useState(null);
 
   const pageRef = useRef(null);
   useEffect(() => {
@@ -55,11 +51,6 @@ export default function TVPage({
       .then((data) => {
         if (!mounted) return;
         setDetails(data);
-        setSelectedLang((prev) =>
-          prev === null && data.spoken_languages?.length > 0
-            ? data.spoken_languages[0].iso_639_1
-            : prev
-        );
         const vids = data.videos?.results || [];
         const t = vids.find((v) => v.type === "Trailer" && v.site === "YouTube") || vids.find((v) => v.site === "YouTube");
         if (t) setTrailerKey(t.key);
@@ -144,7 +135,6 @@ export default function TVPage({
 
   const overview = anilistData ? cleanAnilistDescription(anilistData.description) || details?.overview : details?.overview;
   const restricted = isRestricted(ageRating?.minAge, getAgeLimitSetting(storage));
-  const spokenLangs = details?.spoken_languages || [];
 
   if (playing) {
     const pk = epKey(playing.season, playing.episode);
@@ -167,13 +157,7 @@ export default function TVPage({
         onNextEpisode={handleNextEpisode}
         malId={anilistData?.idMal || null}
         offline={offline}
-        prefilledUrl={getSourceUrl(playerSource, "tv", item.id, playing.season, playing.episode, selectedLang)}
-        playerSource={playerSource}
-        onSourceChange={(src) => {
-          setPlayerSource(src);
-          storage.set(STORAGE_KEYS.PLAYER_SOURCE, src);
-        }}
-        preferredLang={selectedLang}
+        prefilledUrl={getSourceUrl("tv", item.id, playing.season, playing.episode)}
         skipGate={true}
       />
     );
@@ -209,36 +193,6 @@ export default function TVPage({
               </div>
             )}
             <div className="detail-overview">{overview}</div>
-            <div className="source-picker-bar" style={{ marginBottom: "16px" }}>
-              {PLAYER_SOURCES.map((src) => (
-                <button
-                  key={src.id}
-                  className={`tv-btn source-picker-btn tv-focusable${playerSource === src.id ? " tv-btn-primary" : " tv-btn-ghost"}`}
-                  tabIndex={0}
-                  onClick={() => {
-                    setPlayerSource(src.id);
-                    storage.set(STORAGE_KEYS.PLAYER_SOURCE, src.id);
-                  }}
-                >
-                  {src.label}
-                  {src.note && <span className="source-picker-note">({src.note})</span>}
-                </button>
-              ))}
-            </div>
-            {spokenLangs.length > 1 && (
-              <div className="source-picker-bar" style={{ marginBottom: "16px" }}>
-                {spokenLangs.map((l) => (
-                  <button
-                    key={l.iso_639_1}
-                    className={`tv-btn source-picker-btn tv-focusable${selectedLang === l.iso_639_1 ? " tv-btn-primary" : " tv-btn-ghost"}`}
-                    tabIndex={0}
-                    onClick={() => setSelectedLang(l.iso_639_1)}
-                  >
-                    {l.english_name}
-                  </button>
-                ))}
-              </div>
-            )}
             <div className="detail-actions">
               <button className="tv-btn tv-btn-ghost tv-focusable" tabIndex={0} onClick={onSave}>
                 {isSaved ? <BookmarkFillIcon /> : <BookmarkIcon />}
