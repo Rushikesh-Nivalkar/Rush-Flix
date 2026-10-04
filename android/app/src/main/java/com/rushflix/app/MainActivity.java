@@ -103,6 +103,12 @@ public class MainActivity extends BridgeActivity {
             if (!overlayVisible || overlayWebView == null) return;
             sendPlayerCommand("seek_rel", delta);
         }
+
+        // Back pressed on the Home screen (App.jsx rushflix:backButton handler).
+        @JavascriptInterface
+        public void exitApp() {
+            runOnUiThread(() -> finish());
+        }
     }
 
     // Exposed to every frame of the overlay WebView.

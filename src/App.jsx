@@ -18,7 +18,6 @@ import {
 import TVPlayer from "./components/TVPlayer";
 import { fetchLatestRelease, isNewerVersion, APP_VERSION } from "./utils/updateChecker";
 import { isWebOS } from "./utils/platform";
-import { App as CapApp } from "@capacitor/app";
 
 const HomePage = lazy(() => import("./pages/HomePage"));
 const MoviePage = lazy(() => import("./pages/MoviePage"));
@@ -287,30 +286,12 @@ export default function App() {
     })();
   }, []);
 
-  // ── Back button handler (Android phones + TV remote) ─────────────────────
+  // ── Back button state ──────────────────────────────────────────────────────
+  // Android back (TV remote + phone) arrives via MainActivity's rushflix:backButton
+  // event below. The @capacitor/app plugin was never compiled into the APK, so its
+  // backButton listener / exitApp() never worked — removed in v2.7.4.
   const navStackRef = useRef(navStack);
   useEffect(() => { navStackRef.current = navStack; }, [navStack]);
-  useEffect(() => {
-    let listener;
-    (async () => {
-      listener = await CapApp.addListener("backButton", () => {
-        if (window.__livePlayerActive) {
-          window.dispatchEvent(new CustomEvent("rushflix:closeLivePlayer"));
-          return;
-        }
-        if (window.__tvPlayerActive) {
-          window.dispatchEvent(new CustomEvent("rushflix:closeTVPlayer"));
-          return;
-        }
-        if (navStackRef.current.length > 0) {
-          navigateBack();
-        } else {
-          CapApp.exitApp();
-        }
-      });
-    })();
-    return () => { listener?.remove(); };
-  }, [navigateBack]);
 
   // ── webOS keyboard back — Escape (produced by 461 remap above) → navigateBack ─
   // Bubble phase so dialog capture listeners (with stopImmediatePropagation) win first.
@@ -348,7 +329,8 @@ export default function App() {
       if (navStackRef.current.length > 0) {
         navigateBack();
       } else {
-        CapApp.exitApp();
+        // Back on the Home screen: close the app (native finish()).
+        window.RushFlixBridge?.exitApp?.();
       }
     };
     window.addEventListener("rushflix:backButton", handler);

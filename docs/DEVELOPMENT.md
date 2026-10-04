@@ -32,15 +32,17 @@ In the browser the embed player runs in an `<iframe>`; in the Android app it run
 ## Build the Android APK
 
 ```bash
-npm install
+npm ci                        # exact versions from package-lock.json
 npm run build                 # web bundle → dist/
-npx cap copy android          # copy dist/ into the Android project
+npx cap sync android          # copy dist/ + generate android/capacitor-cordova-android-plugins/
 cd android
 ./gradlew clean assembleRelease
 ```
 
 Output: `android/app/build/outputs/apk/release/app-release.apk`
 
+- **Use `cap sync`, not `cap copy`.** A fresh clone has no `android/capacitor-cordova-android-plugins/` (generated, not committed) and Gradle fails without it; only `sync` creates it. Rush Flix uses **no Capacitor plugins** on purpose — `sync` must leave `android/capacitor.settings.gradle` and `android/app/capacitor.build.gradle` unchanged. If `git status` shows them modified after a sync, a plugin crept into `package.json`.
+- Back button / exit are native (`MainActivity` → `rushflix:backButton` event, `RushFlixBridge.exitApp()`); don't add `@capacitor/app` — its back listener would double-handle Back.
 - **Always `clean`.** An incremental build once shipped stale web assets (wrong version shown in Settings).
 - `android/local.properties` must point at your SDK: `sdk.dir=C\:\\Users\\<you>\\AppData\\Local\\Android\\Sdk`
 - Release signing needs `android/keystore.properties` (**never committed**):
