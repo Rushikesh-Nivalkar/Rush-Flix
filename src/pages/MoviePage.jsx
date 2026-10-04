@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   tmdbFetch, imgUrl, fetchAnilistData, cleanAnilistDescription,
-  isAnimeContent, NON_ANIME_DEFAULT_SOURCE, getSourceUrl, PLAYER_SOURCES,
+  isAnimeContent, resolveSourceId, getSourceUrl, PLAYER_SOURCES,
 } from "../utils/api";
 import {
   PlayIcon, BookmarkIcon, BookmarkFillIcon, BackIcon,
@@ -38,7 +38,7 @@ export default function MoviePage({
   const [ageRating, setAgeRating] = useState(null);
   const [anilistData, setAnilistData] = useState(null);
   const [playerSource, setPlayerSource] = useState(
-    () => storage.get(STORAGE_KEYS.PLAYER_SOURCE) || NON_ANIME_DEFAULT_SOURCE,
+    () => resolveSourceId(storage.get(STORAGE_KEYS.PLAYER_SOURCE)),
   );
   const [selectedLang, setSelectedLang] = useState(null);
 

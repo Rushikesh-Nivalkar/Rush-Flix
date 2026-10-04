@@ -89,17 +89,22 @@ export const tmdbFetch = async (path, apiKey) => {
 // ── Player Sources ────────────────────────────────────────────────────────────
 
 // Hardcoded defaults. getBase() reads the auto-saved override first at call-time.
+// vidsrc points at vsembed.ru directly — vidsrc.to is only an ad-laden wrapper
+// that nests the vsembed.ru player in a third-party iframe.
 const SOURCE_DEFAULTS = {
-  videasy:  "https://player.videasy.to",
-  vidsrc:   "https://vidsrc.to/embed",
+  vidsrc:   "https://vsembed.ru/embed",
+  cineby:   "https://api.cineby.homes/embed",
   "2embed": "https://www.2embed.online/embed",
 };
+
+// _v2: ignores redirect overrides saved before v2.7.0 (old vidsrc.to / videasy domains).
+export const SOURCE_OVERRIDES_KEY = "rushflix_playerSourceOverrides_v2";
 
 // Reads auto-saved redirect override from localStorage at call-time.
 // Falls back to SOURCE_DEFAULTS. Never throws.
 function getBase(id) {
   try {
-    const overrides = JSON.parse(localStorage.getItem("rushflix_playerSourceOverrides") || "{}");
+    const overrides = JSON.parse(localStorage.getItem(SOURCE_OVERRIDES_KEY) || "{}");
     const b = overrides[id];
     return (typeof b === "string" && b.trim()) ? b.trim().replace(/\/$/, "") : SOURCE_DEFAULTS[id];
   } catch {
@@ -134,13 +139,13 @@ export async function checkSourceRedirect(id) {
 
 export const PLAYER_SOURCES = [
   {
-    id: "videasy",
-    label: "Videasy",
+    id: "cineby",
+    label: "Cineby",
     tag: null,
     note: null,
     supportsProgress: false,
-    movieUrl: (id) => `${getBase("videasy")}/movie/${id}`,
-    tvUrl: (id, season, ep) => `${getBase("videasy")}/tv/${id}/${season}/${ep}`,
+    movieUrl: (id) => `${getBase("cineby")}/movie/${id}`,
+    tvUrl: (id, season, ep) => `${getBase("cineby")}/tv/${id}/${season}/${ep}`,
   },
   {
     id: "vidsrc",
@@ -162,14 +167,18 @@ export const PLAYER_SOURCES = [
   },
 ];
 
+export const NON_ANIME_DEFAULT_SOURCE = "cineby";
+export const ANIME_DEFAULT_SOURCE = "cineby";
+
+// Maps a saved source id that no longer exists (e.g. "videasy") to the default.
+export const resolveSourceId = (id) =>
+  PLAYER_SOURCES.some((s) => s.id === id) ? id : NON_ANIME_DEFAULT_SOURCE;
+
 export const getSourceUrl = (sourceId, type, id, season, ep, lang) => {
-  const src = PLAYER_SOURCES.find((s) => s.id === sourceId) ?? PLAYER_SOURCES[0];
+  const src = PLAYER_SOURCES.find((s) => s.id === resolveSourceId(sourceId));
   const base = type === "movie" ? src.movieUrl(id) : src.tvUrl(id, season, ep);
   return lang ? `${base}?lang=${lang}` : base;
 };
-
-export const NON_ANIME_DEFAULT_SOURCE = "videasy";
-export const ANIME_DEFAULT_SOURCE = "videasy";
 
 // ── AniList API (anime metadata) ──────────────────────────────────────────────
 const ANILIST_API = "https://graphql.anilist.co";

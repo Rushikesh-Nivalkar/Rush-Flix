@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import {
   tmdbFetch, imgUrl, fetchAnilistData,
   cleanAnilistDescription, isAnimeContent,
-  getSourceUrl, PLAYER_SOURCES, NON_ANIME_DEFAULT_SOURCE,
+  getSourceUrl, PLAYER_SOURCES, resolveSourceId,
 } from "../utils/api";
 import {
   PlayIcon, BookmarkIcon, BookmarkFillIcon, BackIcon,
@@ -31,7 +31,7 @@ export default function TVPage({
   const [ageRating, setAgeRating] = useState(null);
   const [anilistData, setAnilistData] = useState(null);
   const [playerSource, setPlayerSource] = useState(
-    () => storage.get(STORAGE_KEYS.PLAYER_SOURCE) || NON_ANIME_DEFAULT_SOURCE,
+    () => resolveSourceId(storage.get(STORAGE_KEYS.PLAYER_SOURCE)),
   );
   const [selectedLang, setSelectedLang] = useState(null);
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { storage, STORAGE_KEYS, getCurrentPStore } from "../utils/storage";
-import { PLAYER_SOURCES, getSourceUrl, NON_ANIME_DEFAULT_SOURCE, checkSourceRedirect } from "../utils/api";
+import { PLAYER_SOURCES, getSourceUrl, resolveSourceId, checkSourceRedirect, SOURCE_OVERRIDES_KEY } from "../utils/api";
 import { fetchAniSkipTimings } from "../utils/aniSkip";
 import { fetchSubtitleUrl, revokeSubtitleUrl } from "../utils/subtitleFetch";
 import { SUBTITLE_LANGUAGES } from "../utils/subtitles";
@@ -49,7 +49,7 @@ export default function TVPlayer({
     const initUrl = prefilledUrl || (storage.get(STORAGE_KEYS.CUSTOM_SOURCES) || {})[progressKey] || "";
     return detectMode(initUrl);
   });
-  const [activeSource, setActiveSource] = useState(playerSource || NON_ANIME_DEFAULT_SOURCE);
+  const [activeSource, setActiveSource] = useState(() => resolveSourceId(playerSource));
   const [buffering, setBuffering] = useState(false);
   const [videoError, setVideoError] = useState(false);
   const [showEpList, setShowEpList] = useState(false);
@@ -260,10 +260,10 @@ export default function TVPlayer({
     checkSourceRedirect(activeSource).then((newOrigin) => {
       if (cancelled || !newOrigin) return;
       try {
-        const overrides = JSON.parse(localStorage.getItem("rushflix_playerSourceOverrides") || "{}");
+        const overrides = JSON.parse(localStorage.getItem(SOURCE_OVERRIDES_KEY) || "{}");
         if (overrides[activeSource] === newOrigin) return;
         overrides[activeSource] = newOrigin;
-        localStorage.setItem("rushflix_playerSourceOverrides", JSON.stringify(overrides));
+        localStorage.setItem(SOURCE_OVERRIDES_KEY, JSON.stringify(overrides));
         const newUrl = getSourceUrl(activeSource, mediaType, tmdbId, season, episode);
         console.log(`[RF] redirect auto-update: ${activeSource} → ${newOrigin} | url="${newUrl}"`);
         setUrl(newUrl);
