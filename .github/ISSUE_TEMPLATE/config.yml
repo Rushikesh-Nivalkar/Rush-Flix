@@ -1,14 +1,8 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Github Discussions
-    url: https://github.com/truelockmc/streambert/discussions/categories/q-a
-    about: Ask your questions here.
-  - name: Discord Community
-    url: https://discord.com/invite/wDESTYeZy9
-    about: Get further help on my Discord Server
-  - name: Streambert README
-    url: https://github.com/truelockmc/streambert/blob/main/README.md
-    about: View the README (Installation/build Instructions & more are there)
-  - name: Download Streambert
-    url: https://github.com/truelockmc/streambert/releases/latest
-    about: Download the latest version of streambert.
+  - name: Install & setup guide
+    url: https://github.com/Rushikesh-Nivalkar/Rush-Flix#readme
+    about: Which TVs are supported, how to install, set up your TMDB token, and troubleshooting.
+  - name: Download Rush Flix
+    url: https://github.com/Rushikesh-Nivalkar/Rush-Flix/releases/latest
+    about: Get the latest APK (Android TV / Google TV / phones) or IPK (LG webOS).

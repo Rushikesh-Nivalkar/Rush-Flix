@@ -19,3 +19,23 @@ android/.idea/
 *.jks
 *.keystore
 keystore.properties
+
+# webOS builds + local release folders
+*.ipk
+release-v*/
+releases/
+
+# Local-only tooling / backups
+.old-git/
+.code-review-graph/
+adb-install.bat
+adb-install.bat.example
+serve.bat
+
+# Leftovers from Streambert (the Electron app Rush Flix was forked from) — not used by Rush Flix
+screenshots/
+tmdb-tutorial.md
+public/installer-sidebar.bmp
+public/version.json
+.github/workflows/build.yml
+scripts/release.mjs

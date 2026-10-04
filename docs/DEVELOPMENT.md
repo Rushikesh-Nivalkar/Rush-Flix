@@ -167,7 +167,6 @@ Rush-Flix/
 │   └── TokenRelayServer.java     # Local server (port 8080) for phone QR setup
 ├── scripts/
 │   ├── check-updater.mjs         # Release check (npm run check:updater)
-│   ├── release.mjs               # LEGACY, don't use: uploads the *debug* APK; follow the release process above
 │   ├── package-webos.js          # webOS IPK builder
 │   └── gen-tv-banner.js          # Android TV launcher banner
 ├── docs/
