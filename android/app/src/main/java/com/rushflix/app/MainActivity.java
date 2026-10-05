@@ -14,6 +14,7 @@ import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -29,7 +30,10 @@ public class MainActivity extends BridgeActivity {
     private boolean overlayVisible = false;
     private volatile double pendingSeekTo = 0;
     // Host of the embed URL currently loaded — top-level navigations elsewhere are ads.
-    private String playerHost = null;
+    // volatile: read by shouldInterceptRequest on WebView network threads.
+    private volatile String playerHost = null;
+    // Drops ad/tracker requests made inside the player (assets/adblock/domains.txt).
+    private final AdBlocker adBlocker = new AdBlocker();
     // True once PLAYER_SCRIPT found a <video> in any frame of the current player page.
     private volatile boolean videoAttached = false;
     // False when the WebView can't inject at document start → onPageFinished fallback.
@@ -45,10 +49,22 @@ public class MainActivity extends BridgeActivity {
     // - each command carries an id and is applied once per frame: embed pages
     //   (Cineby / vsembed) also forward parent messages to their player frame, so
     //   without the id a toggle arrived twice (pause → instant resume)
+    // - refuses <script src> from third-party throwaway-TLD hosts: the QR-scam ad
+    //   loader arrives that way. Video streams also use such domains but via
+    //   fetch/XHR, which stays allowed (blocking those domains outright broke playback)
     private static final String PLAYER_SCRIPT =
         "(function(){" +
         "if(window.__rfInit)return;window.__rfInit=1;" +
         "try{window.open=function(){return null;};}catch(e){}" +
+        "var BAD=/\\.(cfd|cyou|sbs|space|rest|icu|buzz|quest|click|bond|mom|lol|autos|boats|yachts|motorcycles|beauty|hair|skin|makeup|pics|monster|cam)$/i;" +
+        "function badSrc(u){try{var h=new URL(u,location.href).hostname;return h!==location.hostname&&BAD.test(h);}catch(e){return false;}}" +
+        "try{var sd=Object.getOwnPropertyDescriptor(HTMLScriptElement.prototype,'src');" +
+        "Object.defineProperty(HTMLScriptElement.prototype,'src',{configurable:true,get:sd.get," +
+        "set:function(u){if(badSrc(u)){this.type='rf/blocked';return;}sd.set.call(this,u);}});" +
+        "var sa=Element.prototype.setAttribute;" +
+        "Element.prototype.setAttribute=function(n,u){" +
+        "if(this instanceof HTMLScriptElement&&String(n).toLowerCase()==='src'&&badSrc(u)){this.type='rf/blocked';return;}" +
+        "return sa.apply(this,arguments);};}catch(e){}" +
         "var v=null;" +
         "function apply(a,x){" +
         "if(!v)return;" +
@@ -196,6 +212,18 @@ public class MainActivity extends BridgeActivity {
             }
         });
         overlayWebView.setWebViewClient(new WebViewClient() {
+            // Every request from every frame of the player (scripts, frames, trackers)
+            // is checked against the blocklist; ads get an empty response.
+            @Override
+            public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                String host = request.getUrl().getHost();
+                if (adBlocker.isBlocked(host, playerHost)) {
+                    Log.d(TAG, "Blocked ad request: " + host);
+                    return adBlocker.emptyResponse();
+                }
+                return super.shouldInterceptRequest(view, request);
+            }
+
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 if (!request.isForMainFrame() || request.isRedirect()) return false;
@@ -269,6 +297,7 @@ public class MainActivity extends BridgeActivity {
         // Register APK updater — JS calls window.RushFlixUpdater.downloadAndInstall(url)
         webView.addJavascriptInterface(new ApkUpdaterPlugin(this, webView), "RushFlixUpdater");
 
+        adBlocker.loadAsync(this);
         setupOverlayWebView(webView);
 
         try {

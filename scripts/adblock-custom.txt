@@ -1,0 +1,10 @@
+# Extra ad/scam domains seen in the Cineby player that HaGeZi doesn't list yet.
+# One domain per line (also blocks subdomains). Add new ones here, then
+# run `npm run update:blocklist`.
+#
+# Do NOT add video stream hosts: the player streams from throwaway domains too
+# (e.g. *.space / *.site serving /generate.php + HLS). Only add a domain after
+# checking what it delivers.
+
+# "Confirm you're not a robot" QR scam overlay (seen on Fire TV, 2026-10-05)
+gurlleviter.cyou

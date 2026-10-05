@@ -76,14 +76,15 @@ npm run deploy:webos          # optional: ares-install + launch on the paired TV
    - `appinfo.json` → `version` (webOS)
    - `android/app/build.gradle` → `versionCode` (+1) and `versionName`
    - `src/utils/updateChecker.js` → fallback `APP_VERSION`
-3. Build the APK (clean) and IPK as above. If Gradle fails, **don't** reuse whatever APK is left in `build/outputs`. It's the previous version.
-4. Verify the APK: signature SHA-256 starts `63cfea24`; `aapt2 dump badging` shows the new `versionCode`.
-5. Commit, tag `vX.Y.Z`, push, and create the GitHub release with **both** assets named exactly:
+3. Refresh the ad blocklist: `npm run update:blocklist` (HaGeZi Pro + `scripts/adblock-custom.txt` → `android/app/src/main/assets/adblock/domains.txt`; commit it).
+4. Build the APK (clean) and IPK as above. If Gradle fails, **don't** reuse whatever APK is left in `build/outputs`. It's the previous version.
+5. Verify the APK: signature SHA-256 starts `63cfea24`; `aapt2 dump badging` shows the new `versionCode`.
+6. Commit, tag `vX.Y.Z`, push, and create the GitHub release with **both** assets named exactly:
    - `Rush-Flix_VX.Y.Z.apk`
    - `Rush-Flix_VX.Y.Z.ipk`
 
    The in-app updater finds them by these names.
-6. **Run the release check:**
+7. **Run the release check:**
    ```bash
    npm run check:updater            # expects v<package.json version>
    npm run check:updater -- v2.7.3  # or a specific tag
@@ -104,6 +105,12 @@ npm run deploy:webos          # optional: ares-install + launch on the paired TV
 - `PLAYER_SCRIPT` is injected into **every frame** (`WebViewCompat.addDocumentStartJavaScript`). It finds the `<video>`, autoplays, reports progress, and handles remote commands via `window.__rfCmd`.
 - **Commands carry an id and are applied once per frame.** The embed pages forward parent messages to their player frame too; without the id every command arrived twice (pause → instant resume).
 - Ad protection: popups refused (`onCreateWindow`), top-level navigation away from the player host blocked, `window.open` disabled in all frames.
+- **Ad blocking (v2.7.5)** — the Cineby player loads ad scripts *inside* its frames (e.g. the "Confirm you're not a robot" QR scam overlay). Two layers:
+  1. **Network** (`AdBlocker.java`, `shouldInterceptRequest`): every request from every frame is checked against `assets/adblock/domains.txt` (HaGeZi Pro + `scripts/adblock-custom.txt`, ~200k domains, kept as sorted 64-bit hashes); matches get an empty 204. Blocks trackers and known ad networks.
+  2. **Script** (`PLAYER_SCRIPT`): refuses `<script src>` from third-party hosts on throwaway TLDs (`.cfd`, `.cyou`, `.rest`, `.space`…) — the ad loaders use random names there, faster than any list.
+  - ⚠️ **Never block those TLDs at the network level**: the video streams come from throwaway domains too (e.g. `*.space` / `*.site` serving `/generate.php` + HLS) as fetch/XHR. Doing so broke playback in testing.
+  - New ad domain seen? Check what it delivers first, then add it to `scripts/adblock-custom.txt` and run `npm run update:blocklist`.
+  - Browser / LG webOS use a plain iframe and get none of this.
 - Remote OK: native touch at the screen centre until a video exists, then play/pause.
 
 ### Update checker (`src/utils/updateChecker.js`)
@@ -165,10 +172,13 @@ Rush-Flix/
 │   └── App.jsx                   # Routing, profiles, back-button handling
 ├── android/app/src/main/java/com/rushflix/app/
 │   ├── MainActivity.java         # Overlay player, PLAYER_SCRIPT, remote keys, back button
+│   ├── AdBlocker.java            # Network-level ad/tracker blocking for the overlay player
 │   ├── ApkUpdaterPlugin.java     # In-app APK download + install
 │   └── TokenRelayServer.java     # Local server (port 8080) for phone QR setup
 ├── scripts/
 │   ├── check-updater.mjs         # Release check (npm run check:updater)
+│   ├── update-blocklist.mjs      # Refresh assets/adblock/domains.txt (npm run update:blocklist)
+│   ├── adblock-custom.txt        # Our own extra ad domains (merged into the blocklist)
 │   ├── package-webos.js          # webOS IPK builder
 │   └── gen-tv-banner.js          # Android TV launcher banner
 ├── docs/

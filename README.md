@@ -161,7 +161,7 @@ LG only lets you install your own apps through its **Developer Mode**, and you n
 - **One player.** Rush Flix plays through the Cineby player. If Cineby is down, nothing plays until it's back. The Android app follows Cineby automatically if it moves to a new web address.
 - **No audio-language or quality choice.** That's decided by the player.
 - **No subtitles for normal movies/shows.** Subtitles only work for your own direct video links.
-- **Ads inside the player:** the Android app blocks ad pop-ups. On LG TVs and in browsers some ads may still appear.
+- **Ads inside the player:** the Android app (TV, phone, Fire TV) has a built-in ad blocker — pop-ups, ad overlays (like fake "Confirm you're not a robot" QR codes) and trackers are blocked. New ad networks appear all the time, so one may occasionally slip through until the next update. On LG TVs and in browsers, ads may still appear.
 - **Live TV:** many channels are region-locked (a VPN on your router helps), and there's no TV guide or recording.
 - **Data stays on the device.** There's no cloud account; uninstalling deletes your profiles and history.
 - **No casting** to other screens.
@@ -177,6 +177,7 @@ LG only lets you install your own apps through its **Developer Mode**, and you n
 | **"App not installed"** on Android | Don't uninstall first. Install the newer APK over the existing app. If it persists, open an [issue](https://github.com/Rushikesh-Nivalkar/Rush-Flix/issues). |
 | **"Could not reach GitHub"** when checking for updates | On 2.5.0–2.7.0 that's a known bug. Install the latest version once by hand ([Android step 1](#1-install)). |
 | **A title won't play** | Try again later. The player may not have that title yet, or it may be a streaming exclusive. |
+| **A QR code / "Confirm you're not a robot" box appears** | It's a scam ad — **never scan it**. Update to the latest version (it blocks these); if it still appears, report it via Settings → Feedback. |
 | **Rush Flix disappeared from my LG TV** | Developer Mode expired. Re-enable it and [install again](#-lg-smart-tvs-webos); remember to **Extend** it. |
 | **Live TV channel won't load** | It's probably region-locked (the app shows the country). Try another channel or a VPN. |
 
@@ -212,4 +213,5 @@ The author provides this code for educational purposes. **Use at your own risk.*
 - [AniList](https://anilist.co/): anime metadata
 - [AniSkip](https://aniskip.com/): anime intro/outro timings
 - [iptv-org](https://github.com/iptv-org/iptv): free Live TV channel lists
+- [HaGeZi DNS Blocklists](https://github.com/hagezi/dns-blocklists) (GPL-3.0): the ad/tracker list built into the Android app
 - [StreamBert](https://github.com/truelockmc/streambert): original inspiration and architecture reference
