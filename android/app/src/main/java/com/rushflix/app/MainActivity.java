@@ -10,6 +10,7 @@ import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowManager;
 import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
@@ -22,6 +23,8 @@ import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
 import com.getcapacitor.BridgeActivity;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
 public class MainActivity extends BridgeActivity {
     private static final String TAG = "MainActivity";
@@ -29,6 +32,10 @@ public class MainActivity extends BridgeActivity {
     private WebView overlayWebView;
     private boolean overlayVisible = false;
     private volatile double pendingSeekTo = 0;
+    // Players currently playing ("overlay", "live", "video"). While any is
+    // playing the screen is kept on so the TV screensaver doesn't start.
+    // UI thread only.
+    private final Set<String> keepAwakeReasons = new HashSet<>();
     // Host of the embed URL currently loaded — top-level navigations elsewhere are ads.
     // volatile: read by shouldInterceptRequest on WebView network threads.
     private volatile String playerHost = null;
@@ -88,6 +95,10 @@ public class MainActivity extends BridgeActivity {
         "var d=e.data;if(d&&d.__rf===1)window.__rfCmd(d.action,d.value,d.id);});" +
         "function setup(n){" +
         "if(v===n)return;v=n;window._rushflixVideo=n;" +
+        // Keep the TV screen on only while this video is actually playing.
+        "n.addEventListener('playing',function(){try{RushFlixProgress.playState(true);}catch(e){}});" +
+        "['pause','ended','emptied','error'].forEach(function(t){" +
+        "n.addEventListener(t,function(){try{RushFlixProgress.playState(false);}catch(e){}});});" +
         "n.play().catch(function(){});" +
         "try{RushFlixProgress.videoReady();}catch(e){}" +
         "setInterval(function(){" +
@@ -125,6 +136,12 @@ public class MainActivity extends BridgeActivity {
         public void exitApp() {
             runOnUiThread(() -> finish());
         }
+
+        // Live TV / direct-video players (src/utils/platform.js keepAwake).
+        @JavascriptInterface
+        public void setKeepAwake(String reason, boolean on) {
+            updateKeepAwake(reason, on);
+        }
     }
 
     // Exposed to every frame of the overlay WebView.
@@ -141,6 +158,11 @@ public class MainActivity extends BridgeActivity {
         }
 
         @JavascriptInterface
+        public void playState(boolean playing) {
+            updateKeepAwake("overlay", playing);
+        }
+
+        @JavascriptInterface
         public void videoReady() {
             videoAttached = true;
             // Resume position: applied once, as soon as the first video appears.
@@ -150,6 +172,21 @@ public class MainActivity extends BridgeActivity {
                 sendPlayerCommand("seek_abs", seekTo);
             }
         }
+    }
+
+    // Keeps the screen on (no TV screensaver) while any player reports it's playing.
+    // Paused / closed players release it, so a long pause still lets the TV sleep.
+    private void updateKeepAwake(String reason, boolean on) {
+        runOnUiThread(() -> {
+            boolean changed = on ? keepAwakeReasons.add(reason) : keepAwakeReasons.remove(reason);
+            if (!changed) return;
+            if (keepAwakeReasons.isEmpty()) {
+                getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            } else {
+                getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            }
+            Log.d(TAG, "Keep screen on: " + !keepAwakeReasons.isEmpty() + " " + keepAwakeReasons);
+        });
     }
 
     // Runs a PLAYER_SCRIPT command in the top frame; __rfCmd relays it to all child frames.
@@ -275,6 +312,7 @@ public class MainActivity extends BridgeActivity {
         overlayVisible = false;
         videoAttached = false;
         playerHost = null;
+        updateKeepAwake("overlay", false);
         getBridge().getWebView().requestFocus();
         // Tell React the player was closed (e.g. via Back button)
         getBridge().getWebView().post(() ->

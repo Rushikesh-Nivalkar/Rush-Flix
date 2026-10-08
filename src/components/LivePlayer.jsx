@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { keepAwake } from "../utils/platform";
 
 const _dn = new Intl.DisplayNames(["en"], { type: "region" });
 const getCountryName = (code) => {
@@ -62,6 +63,7 @@ export default function LivePlayer({ channel, channels, onClose }) {
     window.addEventListener("rushflix:closeLivePlayer", handler);
     return () => {
       window.__livePlayerActive = false;
+      keepAwake("live", false);
       window.removeEventListener("rushflix:closeLivePlayer", handler);
     };
   }, [onClose]);
@@ -97,9 +99,9 @@ export default function LivePlayer({ channel, channels, onClose }) {
   }, [goPrev, goNext, togglePlay, resetOverlay, onClose]);
 
   const onWaiting  = () => setBuffering(true);
-  const onPlaying  = () => { setBuffering(false); setPaused(false); };
-  const onPause    = () => setPaused(true);
-  const onError    = () => { setBuffering(false); setError(true); };
+  const onPlaying  = () => { setBuffering(false); setPaused(false); keepAwake("live", true); };
+  const onPause    = () => { setPaused(true); keepAwake("live", false); };
+  const onError    = () => { setBuffering(false); setError(true); keepAwake("live", false); };
 
   const prevCh = channels[(idx - 1 + channels.length) % channels.length];
   const nextCh = channels[(idx + 1) % channels.length];
@@ -114,6 +116,7 @@ export default function LivePlayer({ channel, channels, onClose }) {
         onWaiting={onWaiting}
         onPlaying={onPlaying}
         onPause={onPause}
+        onEnded={() => keepAwake("live", false)}
         onError={onError}
         onCanPlay={() => setBuffering(false)}
       />

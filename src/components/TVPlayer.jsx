@@ -4,6 +4,7 @@ import { getSourceUrl, checkSourceRedirect, saveSourceRedirect } from "../utils/
 import { fetchAniSkipTimings } from "../utils/aniSkip";
 import { fetchSubtitleUrl, revokeSubtitleUrl } from "../utils/subtitleFetch";
 import { SUBTITLE_LANGUAGES } from "../utils/subtitles";
+import { keepAwake } from "../utils/platform";
 
 const UP_NEXT_DELAY = 10;
 
@@ -247,6 +248,10 @@ export default function TVPlayer({
 
   // Reset iframe gate on source/url change so the Watch button reappears.
   useEffect(() => { if (!skipGate) setIframeActive(false); }, [url, skipGate]);
+
+  // Direct-video mode: release the screen-on hold when the player closes.
+  // (Embed playback is handled natively by the overlay player in MainActivity.)
+  useEffect(() => () => keepAwake("video", false), []);
 
   // APK only: probe the player's base URL for redirects. If the domain changed,
   // silently save the new base and reload the player URL. Transparent to user.
@@ -520,7 +525,8 @@ export default function TVPlayer({
             controls
             onTimeUpdate={handleTimeUpdate}
             onWaiting={() => setBuffering(true)}
-            onPlaying={() => { setBuffering(false); setVideoError(false); }}
+            onPlaying={() => { setBuffering(false); setVideoError(false); keepAwake("video", true); }}
+            onPause={() => keepAwake("video", false)}
             onCanPlay={handleCanPlay}
             onError={() => {
               const v = videoRef.current;
@@ -529,8 +535,9 @@ export default function TVPlayer({
               console.error(`[RF] video error: code=${code} msg="${msg}" url="${url}"`);
               setVideoError(true);
               setBuffering(false);
+              keepAwake("video", false);
             }}
-            onEnded={handleVideoEnded}
+            onEnded={(e) => { keepAwake("video", false); handleVideoEnded(e); }}
           >
             {subtitleUrl && (
               <track
