@@ -32,14 +32,7 @@ export default function TVPage({
   const [anilistData, setAnilistData] = useState(null);
 
   const pageRef = useRef(null);
-  useEffect(() => {
-    if (playing) return;
-    const t = setTimeout(() => {
-      const el = pageRef.current?.querySelector('button:not([disabled]), [tabindex]:not([tabindex="-1"])');
-      el?.focus();
-    }, 80);
-    return () => clearTimeout(t);
-  }, [playing]);
+  const focusPlaced = useRef(false);
 
   const title = item.title || item.name;
   const isAnime = details ? isAnimeContent(item, details) : false;
@@ -91,40 +84,97 @@ export default function TVPage({
 
   const epKey = (s, ep) => `tv_${item.id}_s${s}e${ep}`;
 
+  // Episode to continue in the shown season: the one Continue Watching opened,
+  // else the first unwatched, else the first.
+  const continueEpNum = useMemo(() => {
+    if (!episodes.length) return null;
+    if (item.episode != null && item.season === season &&
+        episodes.some((e) => e.episode_number === item.episode)) return item.episode;
+    const firstUnwatched = episodes.find((e) => !watched[epKey(season, e.episode_number)]);
+    return (firstUnwatched || episodes[0]).episode_number;
+  }, [episodes, season, item.episode, item.season, watched]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Initial focus (and again after closing the player): start on Back while
+  // TMDB loads, then move to the active season tab — the season Continue
+  // Watching opened (item.season) or Season 1 — or, for one-season shows, the
+  // episode to continue. Never steals focus once the user has moved off Back.
+  useEffect(() => {
+    if (playing) { focusPlaced.current = false; return; }
+    if (focusPlaced.current) return;
+    const t = setTimeout(() => {
+      const root = pageRef.current;
+      if (!root) return;
+      const active = document.activeElement;
+      const userMoved = active && active !== document.body && root.contains(active) &&
+        !active.classList.contains("back-btn");
+      if (userMoved) { focusPlaced.current = true; return; }
+      const target = seasons.length > 1
+        ? root.querySelector(".season-tab.active")
+        : root.querySelector("[data-continue-ep]");
+      if (target) { target.focus(); focusPlaced.current = true; return; }
+      // Not loaded yet: hold focus on Back so the remote works meanwhile.
+      if (!root.contains(active)) {
+        root.querySelector('button:not([disabled]), [tabindex]:not([tabindex="-1"])')?.focus();
+      }
+    }, 80);
+    return () => clearTimeout(t);
+  }, [playing, seasons.length, seasonDetails]);
+
+  // Starting an episode does NOT clear the show's "Up Next" card: if the TV is
+  // switched off before the new episode passes the 5% in-progress threshold,
+  // the card is what keeps the show in Continue Watching. The card is hidden
+  // automatically once an episode of the show is in progress (App.jsx), and
+  // replaced when that episode is finished.
   function handlePlayEpisode(ep) {
-    onSeriesNextClear?.(item.id);
     onHistory({ ...item, media_type: "tv", season, episode: ep.episode_number, episodeName: ep.name });
     setPlaying({ season, episode: ep.episode_number, name: ep.name });
   }
 
   function handleNextEpisode(ep) {
-    onSeriesNextClear?.(item.id);
     onHistory({ ...item, media_type: "tv", season, episode: ep.episode_number, episodeName: ep.name });
     setPlaying({ season, episode: ep.episode_number, name: ep.name });
   }
+
+  const aired = (date) => !!date && date <= new Date().toISOString().slice(0, 10);
+  const queuedFor = useRef(null); // progress arrives every few seconds — queue once per episode
 
   function handleEpProgress(pct) {
     if (!playing) return;
     const pk = epKey(playing.season, playing.episode);
     saveProgress(pk, pct);
-    if (pct > 90) {
-      onMarkWatched(pk);
-      const idx = episodes.findIndex((e) => e.episode_number === playing.episode);
-      const nextEp = episodes[idx + 1];
-      if (nextEp && onSeriesNext) {
-        onSeriesNext(item.id, {
-          id: item.id,
-          title: item.title || item.name,
-          name: item.name || item.title,
-          poster_path: item.poster_path,
-          media_type: "tv",
-          season: playing.season,
-          episode: nextEp.episode_number,
-          episodeName: nextEp.name,
-          watchedAt: Date.now(),
-          _isSeriesNext: true,
-        });
+    if (pct <= 90 || queuedFor.current === pk) return;
+    queuedFor.current = pk;
+    onMarkWatched(pk);
+
+    // Queue the next episode: the first later, not-yet-watched episode of this
+    // season (so rewatching an old episode doesn't lose your real place), else
+    // episode 1 of the next season.
+    const idx = episodes.findIndex((e) => e.episode_number === playing.episode);
+    const later = episodes.slice(idx + 1);
+    const nextEp = later.find((e) => !watched[epKey(playing.season, e.episode_number)]);
+    let next = null;
+    if (nextEp) {
+      if (aired(nextEp.air_date)) next = { season: playing.season, episode: nextEp.episode_number, episodeName: nextEp.name };
+    } else {
+      const nextSeason = seasons.find((s) => s.season_number === playing.season + 1);
+      if (nextSeason && nextSeason.episode_count > 0 && aired(nextSeason.air_date)) {
+        next = { season: nextSeason.season_number, episode: 1, episodeName: "" };
       }
+    }
+    if (next && onSeriesNext) {
+      onSeriesNext(item.id, {
+        id: item.id,
+        title: item.title || item.name,
+        name: item.name || item.title,
+        poster_path: item.poster_path,
+        media_type: "tv",
+        ...next,
+        watchedAt: Date.now(),
+        _isSeriesNext: true,
+      });
+    } else {
+      // Finished everything that has aired — nothing to continue.
+      onSeriesNextClear?.(item.id);
     }
   }
 
@@ -249,7 +299,8 @@ export default function TVPage({
               const epProg = progress[pk] || 0;
               const epWatched = !!watched[pk];
               return (
-                <button key={ep.id} className={`episode-card tv-focusable ${epWatched ? "ep-watched" : ""}`} tabIndex={0} disabled={restricted} onClick={() => !restricted && handlePlayEpisode(ep)}>
+                <button key={ep.id} className={`episode-card tv-focusable ${epWatched ? "ep-watched" : ""}`} tabIndex={0} disabled={restricted} onClick={() => !restricted && handlePlayEpisode(ep)}
+                  data-continue-ep={ep.episode_number === continueEpNum ? "" : undefined}>
                   {ep.still_path && <img className="ep-still" src={imgUrl(ep.still_path, "w300")} alt={ep.name} />}
                   <div className="ep-info">
                     <div className="ep-num">E{ep.episode_number}</div>

@@ -42,7 +42,10 @@ export default function MoviePage({
   useEffect(() => {
     if (playing) return;
     const t = setTimeout(() => {
-      const el = pageRef.current?.querySelector('button:not([disabled]), [tabindex]:not([tabindex="-1"])');
+      // Start on Watch / Resume (not Back); fall back to the first button.
+      const root = pageRef.current;
+      const el = root?.querySelector("[data-autofocus]")
+        || root?.querySelector('button:not([disabled]), [tabindex]:not([tabindex="-1"])');
       el?.focus();
     }, 80);
     return () => clearTimeout(t);
@@ -174,7 +177,7 @@ export default function MoviePage({
             <div className="detail-overview">{overview}</div>
             <div className="detail-actions">
               {!restricted && (
-                <button className="tv-btn tv-btn-primary tv-focusable" tabIndex={0} onClick={handlePlay}>
+                <button className="tv-btn tv-btn-primary tv-focusable" tabIndex={0} onClick={handlePlay} data-autofocus>
                   <PlayIcon />
                   {watchProgress > 2 && watchProgress < 95 ? "Resume" : "Watch"}
                   {watchProgress > 2 && watchProgress < 95 && (
