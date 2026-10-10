@@ -747,6 +747,8 @@ export default function App() {
                 onMarkUnwatched={markUnwatched}
                 onSeriesNext={addSeriesNext}
                 onSeriesNextClear={clearSeriesNext}
+                continueEntry={inProgress.find((e) =>
+                  e.media_type !== "movie" && String(e.id) === String(selected.id) && e.season != null)}
                 offline={offline}
               />
             )}

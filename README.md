@@ -75,7 +75,7 @@ Keep the token handy (e.g. in your phone's notes). You'll paste it during setup.
 5. **Create a profile:** pick a name and an emoji. Add one per person; watch history and lists are kept separate.
 6. You're done. Pick something and press **Watch**.
 
-**Using the remote while watching:** **OK** = play/pause · **Left/Right** = back/forward 10 s · **Rewind/Fast-forward** = 30 s · **Back** = leave the player.
+**Using the remote while watching:** **OK** = play/pause · **Left/Right** = back/forward 10 s · **Rewind/Fast-forward** = 30 s · **Up/Down** = show the player's buttons (subtitles, quality…): move with the arrows, **OK** to choose, **Back** to close · **Back** = leave the player.
 
 ### 3. Updating
 

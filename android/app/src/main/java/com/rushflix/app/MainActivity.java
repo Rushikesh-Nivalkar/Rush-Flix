@@ -43,6 +43,8 @@ public class MainActivity extends BridgeActivity {
     private final AdBlocker adBlocker = new AdBlocker();
     // True once PLAYER_SCRIPT found a <video> in any frame of the current player page.
     private volatile boolean videoAttached = false;
+    // Remote is driving the player's own buttons/menus (set by PLAYER_SCRIPT).
+    private volatile boolean controlsMode = false;
     // False when the WebView can't inject at document start → onPageFinished fallback.
     private boolean scriptInAllFrames = false;
 
@@ -72,14 +74,66 @@ public class MainActivity extends BridgeActivity {
         "Element.prototype.setAttribute=function(n,u){" +
         "if(this instanceof HTMLScriptElement&&String(n).toLowerCase()==='src'&&badSrc(u)){this.type='rf/blocked';return;}" +
         "return sa.apply(this,arguments);};}catch(e){}" +
-        "var v=null;" +
+        "var v=null,ctl=false,sel=-1,opener=null;" +
+        // The player's own wrapper (Cineby: #player). Its show/hide timer runs on pointer
+        // events, so wake() = synthetic pointermove → bar shows, 2.8 s auto-hide restarts.
+        // Remote commands that bypass the player UI must wake() or the bar never hides.
+        "function root(){return document.querySelector('#player')||(v&&v.parentElement)||document.body;}" +
+        "function wake(){try{var r=root(),b=r.getBoundingClientRect();" +
+        "r.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:b.left+b.width/2,clientY:b.top+b.height/2}));}catch(e){}}" +
+        "function vis(e){var r=e.getBoundingClientRect();if(r.width<2||r.height<2)return false;" +
+        "var cs=getComputedStyle(e);return cs.display!=='none'&&cs.visibility!=='hidden'&&cs.pointerEvents!=='none';}" +
+        // Controls mode: remote highlight over the player's buttons / open menu items.
+        "function items(){var m=document.querySelector('.jw-menu.is-open');" +
+        "var l=m?m.querySelectorAll('.jw-row,.jw-result,.jw-menu-close,button,select,input')" +
+        ":document.querySelectorAll('#controls button.jw-btn,#rew,#bigPlay,#fwd,#upnextPlay,#upnextCancel');" +
+        "return [].filter.call(l,function(e){return vis(e)&&!/^(airBtn|castBtn|fsBtn)$/.test(e.id);});}" +
+        "function css(){if(document.getElementById('rf-st'))return;var s=document.createElement('style');s.id='rf-st';" +
+        "s.textContent='.rf-focus{outline:3px solid #e50914!important;outline-offset:2px!important;border-radius:6px}';" +
+        "(document.head||document.documentElement).appendChild(s);}" +
+        "function mark(l){[].forEach.call(document.querySelectorAll('.rf-focus'),function(e){e.classList.remove('rf-focus');});" +
+        "if(sel>=0&&l[sel]){l[sel].classList.add('rf-focus');try{l[sel].scrollIntoView({block:'nearest'});}catch(e){}}}" +
+        "function setCtl(on){if(ctl===on)return;ctl=on;if(!on){sel=-1;mark([]);}" +
+        "try{RushFlixProgress.controlsMode(on);}catch(e){}}" +
+        "function ctlEnter(){wake();var l=items();if(!l.length)return;css();setCtl(true);" +
+        "var p=l.indexOf(document.querySelector('#play'));if(p<0)p=l.indexOf(document.querySelector('#bigPlay'));" +
+        "sel=p>=0?p:0;mark(l);}" +
+        // dir: 1=left 2=right 3=up 4=down. Bar = left/right; open menu = up/down (left/right too).
+        "function ctlMove(d){wake();var l=items();if(!l.length)return;" +
+        "var cur=l.indexOf(document.querySelector('.rf-focus'));if(cur<0)cur=0;" +
+        "var menu=!!document.querySelector('.jw-menu.is-open');" +
+        "var st=menu?((d===2||d===4)?1:-1):(d===2?1:d===1?-1:0);" +
+        "sel=Math.max(0,Math.min(l.length-1,cur+st));mark(l);}" +
+        "function ctlOk(){var l=items(),e=document.querySelector('.rf-focus')||l[sel];if(!e)return;" +
+        "if(!document.querySelector('.jw-menu.is-open'))opener=e;" +
+        "if(e.tagName==='SELECT'){e.selectedIndex=(e.selectedIndex+1)%e.options.length;" +
+        "e.dispatchEvent(new Event('change',{bubbles:true}));}else e.click();" +
+        "setTimeout(function(){var l2=items(),i=l2.indexOf(e);sel=i>=0?i:pick(l2);mark(l2);wake();},150);}" +
+        // Menu just opened / rebuilt: start on its selected row, else its first row.
+        "function pick(l){for(var i=0;i<l.length;i++)if(/(^|\\s)(active|selected|is-active)(\\s|$)/.test(l[i].className)||l[i].getAttribute('aria-checked')==='true')return i;" +
+        "for(i=0;i<l.length;i++)if(!l[i].classList.contains('jw-menu-close'))return i;return 0;}" +
+        // Back: close an open menu (player's own Escape handler) else leave controls mode.
+        "function ctlBack(){if(document.querySelector('.jw-menu.is-open')){" +
+        "document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));" +
+        "[].forEach.call(document.querySelectorAll('.jw-menu.is-open'),function(m){m.classList.remove('is-open');});" +
+        "setTimeout(function(){var l=items();sel=Math.max(0,l.indexOf(opener));mark(l);wake();},120);" +
+        "return;}setCtl(false);wake();}" +
+        // Play/pause through the player's own button when it's showing (keeps its UI in sync).
+        "function setPlaying(want){if(!v||want===!v.paused)return;var b=document.querySelector('#play');" +
+        "if(b&&vis(b))b.click();else if(want)v.play().catch(function(){});else v.pause();}" +
         "function apply(a,x){" +
         "if(!v)return;" +
-        "if(a==='toggle'){if(v.paused)v.play().catch(function(){});else v.pause();}" +
-        "else if(a==='seek_rel'){v.currentTime=Math.max(0,Math.min(v.currentTime+x,v.duration||Infinity));}" +
+        "if(a==='toggle'){setPlaying(v.paused);wake();}" +
+        "else if(a==='play'){setPlaying(true);wake();}" +
+        "else if(a==='pause'){setPlaying(false);wake();}" +
+        "else if(a==='seek_rel'){v.currentTime=Math.max(0,Math.min(v.currentTime+x,v.duration||Infinity));wake();}" +
         "else if(a==='seek_abs'){" +
         "if(v.readyState>=1)v.currentTime=x;" +
         "else v.addEventListener('loadedmetadata',function(){v.currentTime=x;},{once:true});}" +
+        "else if(a==='ctl_enter'){ctlEnter();}" +
+        "else if(a==='ctl_move'){if(ctl)ctlMove(x);}" +
+        "else if(a==='ctl_ok'){if(ctl)ctlOk();}" +
+        "else if(a==='ctl_back'){if(ctl)ctlBack();}" +
         "}" +
         "function relay(a,x,id){" +
         "var f=document.querySelectorAll('iframe');" +
@@ -99,7 +153,15 @@ public class MainActivity extends BridgeActivity {
         "n.addEventListener('playing',function(){try{RushFlixProgress.playState(true);}catch(e){}});" +
         "['pause','ended','emptied','error'].forEach(function(t){" +
         "n.addEventListener(t,function(){try{RushFlixProgress.playState(false);}catch(e){}});});" +
-        "n.play().catch(function(){});" +
+        // Autoplay only once the player is ready. Our script sees the <video> before the
+        // player's own script has attached its 'play' listener; playing that early left the
+        // player thinking it was paused — on phones it then never showed its pause button.
+        "if(n.readyState>=1)n.play().catch(function(){});" +
+        "else n.addEventListener('loadedmetadata',function(){n.play().catch(function(){});},{once:true});" +
+        // Leave controls mode when the player hides its bar (no menu open).
+        "try{var ro=root();new MutationObserver(function(){" +
+        "if(ctl&&!ro.classList.contains('show-ui')&&!document.querySelector('.jw-menu.is-open'))setCtl(false);" +
+        "}).observe(ro,{attributes:true,attributeFilter:['class']});}catch(e){}" +
         "try{RushFlixProgress.videoReady();}catch(e){}" +
         "setInterval(function(){" +
         "if(v===n&&!n.paused&&n.duration>0){" +
@@ -160,6 +222,11 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public void playState(boolean playing) {
             updateKeepAwake("overlay", playing);
+        }
+
+        @JavascriptInterface
+        public void controlsMode(boolean on) {
+            controlsMode = on;
         }
 
         @JavascriptInterface
@@ -297,6 +364,7 @@ public class MainActivity extends BridgeActivity {
         Log.d(TAG, "showPlayerOverlay: " + url + " seekTo=" + seekTo);
         pendingSeekTo = seekTo;
         videoAttached = false;
+        controlsMode = false;
         playerHost = Uri.parse(url).getHost();
         overlayWebView.setVisibility(View.VISIBLE);
         overlayWebView.bringToFront();
@@ -311,6 +379,7 @@ public class MainActivity extends BridgeActivity {
         overlayWebView.setVisibility(View.GONE);
         overlayVisible = false;
         videoAttached = false;
+        controlsMode = false;
         playerHost = null;
         updateKeepAwake("overlay", false);
         getBridge().getWebView().requestFocus();
@@ -350,23 +419,49 @@ public class MainActivity extends BridgeActivity {
         if (event.getAction() == KeyEvent.ACTION_DOWN) {
             // ── Overlay visible: control the embed player directly ──────────
             if (overlayVisible && overlayWebView != null) {
+                // Controls mode (Up/Down): the arrows move a highlight over the player's
+                // own buttons and menus (CC, quality…); OK presses, Back closes/leaves.
                 switch (event.getKeyCode()) {
                     case KeyEvent.KEYCODE_BACK:
-                        hidePlayerOverlay();
+                        if (controlsMode) sendPlayerCommand("ctl_back", 0);
+                        else hidePlayerOverlay();
+                        return true;
+                    case KeyEvent.KEYCODE_DPAD_UP:
+                        if (controlsMode) sendPlayerCommand("ctl_move", 3);
+                        else if (videoAttached) sendPlayerCommand("ctl_enter", 0);
+                        return true;
+                    case KeyEvent.KEYCODE_DPAD_DOWN:
+                        if (controlsMode) sendPlayerCommand("ctl_move", 4);
+                        else if (videoAttached) sendPlayerCommand("ctl_enter", 0);
                         return true;
                     case KeyEvent.KEYCODE_DPAD_LEFT:
-                        sendPlayerCommand("seek_rel", -10);
+                        if (controlsMode) sendPlayerCommand("ctl_move", 1);
+                        else sendPlayerCommand("seek_rel", -10);
                         return true;
                     case KeyEvent.KEYCODE_DPAD_RIGHT:
-                        sendPlayerCommand("seek_rel", 10);
+                        if (controlsMode) sendPlayerCommand("ctl_move", 2);
+                        else sendPlayerCommand("seek_rel", 10);
                         return true;
                     case KeyEvent.KEYCODE_DPAD_CENTER:
+                    case KeyEvent.KEYCODE_ENTER:
                     case KeyEvent.KEYCODE_NUMPAD_ENTER:
+                        if (controlsMode) {
+                            sendPlayerCommand("ctl_ok", 0);
+                            return true;
+                        }
+                        // fall through: OK without controls mode = play/pause
                     case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
                         // Video found: toggle play/pause in whichever frame holds it.
                         // Not yet: tap the centre, where the embed player's play button sits.
                         if (videoAttached) sendPlayerCommand("toggle", 0);
                         else tapPlayerCentre();
+                        return true;
+                    case KeyEvent.KEYCODE_MEDIA_PLAY:
+                        if (videoAttached) sendPlayerCommand("play", 0);
+                        else tapPlayerCentre();
+                        return true;
+                    case KeyEvent.KEYCODE_MEDIA_PAUSE:
+                        sendPlayerCommand("pause", 0);
                         return true;
                     case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD:
                         sendPlayerCommand("seek_rel", 30);

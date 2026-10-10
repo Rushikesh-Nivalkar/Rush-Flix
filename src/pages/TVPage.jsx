@@ -20,10 +20,17 @@ export default function TVPage({
   onBack, onSettings,
   watched, onMarkWatched, onMarkUnwatched,
   onSeriesNext, onSeriesNextClear,
+  continueEntry = null,
   offline = false,
 }) {
+  // Where to pick up: the show's live Continue Watching entry (also known when the
+  // show is opened from Search / any other row, and moves on to the next episode
+  // once one is finished), else the episode Continue Watching opened.
+  const resume = continueEntry
+    ? { season: continueEntry.season, episode: continueEntry.episode }
+    : item.season != null ? { season: item.season, episode: item.episode } : null;
   const [details, setDetails] = useState(null);
-  const [season, setSeason] = useState(item.season ?? 1);
+  const [season, setSeason] = useState(item.season ?? resume?.season ?? 1);
   const [seasonDetails, setSeasonDetails] = useState(null);
   const [playing, setPlaying] = useState(null);
   const [trailerKey, setTrailerKey] = useState(null);
@@ -84,20 +91,22 @@ export default function TVPage({
 
   const epKey = (s, ep) => `tv_${item.id}_s${s}e${ep}`;
 
-  // Episode to continue in the shown season: the one Continue Watching opened,
+  // Episode to continue in the shown season: the resume episode,
   // else the first unwatched, else the first.
   const continueEpNum = useMemo(() => {
     if (!episodes.length) return null;
-    if (item.episode != null && item.season === season &&
-        episodes.some((e) => e.episode_number === item.episode)) return item.episode;
+    for (const r of [resume, { season: item.season, episode: item.episode }]) {
+      if (r?.episode != null && r.season === season &&
+          episodes.some((e) => e.episode_number === r.episode)) return r.episode;
+    }
     const firstUnwatched = episodes.find((e) => !watched[epKey(season, e.episode_number)]);
     return (firstUnwatched || episodes[0]).episode_number;
-  }, [episodes, season, item.episode, item.season, watched]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [episodes, season, resume?.season, resume?.episode, item.season, item.episode, watched]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Initial focus (and again after closing the player): start on Back while
-  // TMDB loads, then move to the active season tab — the season Continue
-  // Watching opened (item.season) or Season 1 — or, for one-season shows, the
-  // episode to continue. Never steals focus once the user has moved off Back.
+  // TMDB loads, then move to the episode to continue (in the resume season) and
+  // scroll it on screen — TV and phone. Never steals focus once the user has
+  // moved off Back.
   useEffect(() => {
     if (playing) { focusPlaced.current = false; return; }
     if (focusPlaced.current) return;
@@ -108,10 +117,13 @@ export default function TVPage({
       const userMoved = active && active !== document.body && root.contains(active) &&
         !active.classList.contains("back-btn");
       if (userMoved) { focusPlaced.current = true; return; }
-      const target = seasons.length > 1
-        ? root.querySelector(".season-tab.active")
-        : root.querySelector("[data-continue-ep]");
-      if (target) { target.focus(); focusPlaced.current = true; return; }
+      const target = root.querySelector("[data-continue-ep]");
+      if (target) {
+        target.focus({ preventScroll: true });
+        target.scrollIntoView({ block: "center", inline: "nearest" });
+        focusPlaced.current = true;
+        return;
+      }
       // Not loaded yet: hold focus on Back so the remote works meanwhile.
       if (!root.contains(active)) {
         root.querySelector('button:not([disabled]), [tabindex]:not([tabindex="-1"])')?.focus();

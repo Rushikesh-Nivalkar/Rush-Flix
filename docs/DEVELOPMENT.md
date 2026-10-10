@@ -111,7 +111,20 @@ npm run deploy:webos          # optional: ares-install + launch on the paired TV
   - ⚠️ **Never block those TLDs at the network level**: the video streams come from throwaway domains too (e.g. `*.space` / `*.site` serving `/generate.php` + HLS) as fetch/XHR. Doing so broke playback in testing.
   - New ad domain seen? Check what it delivers first, then add it to `scripts/adblock-custom.txt` and run `npm run update:blocklist`.
   - Browser / LG webOS use a plain iframe and get none of this.
-- Remote OK: native touch at the screen centre until a video exists, then play/pause.
+- **Autoplay waits for `loadedmetadata`** (v2.7.8). Playing the moment the `<video>` appears beat the player's own `play` listener, so it thought it was paused: on phones the pause button never appeared (touch layout shows centre controls only under `.jw.show-ui.playing`).
+- **`wake()`** = synthetic `pointermove` on `#player` after every remote command. The Cineby player's 2.8 s auto-hide only restarts from pointer events, so without it the bar stuck on screen after pause → play.
+- **Remote map** (`dispatchKeyEvent`, overlay up):
+
+  | Key | Normal | Controls mode |
+  |---|---|---|
+  | OK / Enter | play/pause (native centre tap until a video exists) | press the highlighted button / menu row |
+  | Play/Pause · Play · Pause | toggle · play · pause | same |
+  | Left / Right | ±10 s (shows the bar) | move along the bar / menu |
+  | Up / Down | enter controls mode (bar + highlight on Play) | move within an open menu |
+  | Rewind / Fast-forward | ±30 s | same |
+  | Back | close the player | close the open menu, else leave controls mode |
+
+  Controls mode lives in `PLAYER_SCRIPT` (`ctl_enter/ctl_move/ctl_ok/ctl_back`, `.rf-focus` outline); the player frame reports it via `RushFlixProgress.controlsMode(bool)`. Navigable: visible `#controls button.jw-btn` + centre/Up Next buttons (Airplay/Cast/Fullscreen skipped), or the open `.jw-menu`'s rows. It ends by itself when the player hides its bar. Some titles' quality lists map rows oddly (720p → 1080p) — that's the player, a mouse click does the same.
 
 ### Update checker (`src/utils/updateChecker.js`)
 - Android: native HTTP (`CapacitorHttp.request`). Browser/webOS: `fetch` to **`api.github.com/repos/…/releases/latest`**.

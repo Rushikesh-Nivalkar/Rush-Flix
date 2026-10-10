@@ -40,6 +40,50 @@ function scrollMainToShow(el, direction) {
   }
 }
 
+// Scroll a horizontal row (cards, season tabs…) so the focused element sits fully
+// inside it — including its focus scale (1.06) and ring — with a gap from the
+// screen edge. The browser's own focus scroll stops with the card touching the
+// edge, which clipped the last card of every row.
+function scrollRowToShow(el) {
+  let row = el.parentElement;
+  while (row && row !== document.body) {
+    const ox = getComputedStyle(row).overflowX;
+    if ((ox === "auto" || ox === "scroll") && row.scrollWidth > row.clientWidth) break;
+    row = row.parentElement;
+  }
+  if (!row || row === document.body) return;
+  const r = el.getBoundingClientRect();
+  const rr = row.getBoundingClientRect();
+  const grow = r.width * 0.03 + 8;
+  const edge = Math.max(24, window.innerWidth * 0.025);
+  const right = Math.min(rr.right, window.innerWidth) - edge;
+  const left = Math.max(rr.left, 0) + grow;
+  if (r.right + grow > right) row.scrollBy({ left: r.right + grow - right, behavior: "smooth" });
+  else if (r.left < left) row.scrollBy({ left: r.left - left, behavior: "smooth" });
+}
+
+// Rows run to the screen's right edge: each row's right margin is pulled out to
+// .tv-main's edge and the same space added as padding, so the last card can
+// still scroll fully into view. Measured (not CSS) because rows sit in
+// containers with different side padding (sections, library, detail pages).
+const BLEED_ROWS = ".cards-row, .season-tabs";
+function applyRowBleed() {
+  const main = document.querySelector(".tv-main");
+  if (!main) return;
+  const edge = main.getBoundingClientRect().right;
+  main.querySelectorAll(BLEED_ROWS).forEach((row) => {
+    const old = Number(row.dataset.bleed || 0);
+    if (row.dataset.bleedPad == null) {
+      row.dataset.bleedPad = parseFloat(getComputedStyle(row).paddingRight) || 0;
+    }
+    const gap = Math.max(0, Math.round(edge - (row.getBoundingClientRect().right - old)));
+    if (gap === old) return;
+    row.dataset.bleed = gap;
+    row.style.marginRight = gap ? `-${gap}px` : "";
+    row.style.paddingRight = gap ? `${Number(row.dataset.bleedPad) + gap}px` : "";
+  });
+}
+
 // ── Row-based spatial navigation ──────────────────────────────────────────────
 // Groups all visible focusable elements into horizontal rows by vertical center.
 // Elements within ROW_THRESHOLD px of each other share a row.
@@ -126,9 +170,12 @@ export function useTVNavigation({ onBack } = {}) {
       if (direction === "up" && navbar && navbar.contains(next)) {
         const activeBtn = navbar.querySelector("[data-nav-active='true']");
         (activeBtn || next).focus();
+      } else if (direction === "left" || direction === "right") {
+        next.focus({ preventScroll: true });
       } else {
         next.focus();
       }
+      scrollRowToShow(next);
       scrollMainToShow(next, direction);
     } else if (direction === "up") {
       const mainEl = document.querySelector(".tv-main");
@@ -159,6 +206,21 @@ export function useTVNavigation({ onBack } = {}) {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [navigate, onBack]);
+
+  // Keep rows bled to the screen edge as pages render and the window resizes.
+  useEffect(() => {
+    let raf = 0;
+    const schedule = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; applyRowBleed(); }); };
+    schedule();
+    const mo = new MutationObserver(schedule);
+    mo.observe(document.body, { childList: true, subtree: true });
+    window.addEventListener("resize", schedule);
+    return () => {
+      mo.disconnect();
+      window.removeEventListener("resize", schedule);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
 
   return { navigate };
 }
