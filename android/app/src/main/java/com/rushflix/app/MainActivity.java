@@ -79,7 +79,9 @@ public class MainActivity extends BridgeActivity {
         // events, so wake() = synthetic pointermove → bar shows, 2.8 s auto-hide restarts.
         // Remote commands that bypass the player UI must wake() or the bar never hides.
         "function root(){return document.querySelector('#player')||(v&&v.parentElement)||document.body;}" +
-        "function wake(){try{var r=root(),b=r.getBoundingClientRect();" +
+        "var lastAct=0;" +
+        "['pointermove','pointerdown','keydown'].forEach(function(t){document.addEventListener(t,function(){lastAct=Date.now();},true);});" +
+        "function wake(){lastAct=Date.now();try{var r=root(),b=r.getBoundingClientRect();" +
         "r.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:b.left+b.width/2,clientY:b.top+b.height/2}));}catch(e){}}" +
         "function vis(e){var r=e.getBoundingClientRect();if(r.width<2||r.height<2)return false;" +
         "var cs=getComputedStyle(e);return cs.display!=='none'&&cs.visibility!=='hidden'&&cs.pointerEvents!=='none';}" +
@@ -151,6 +153,13 @@ public class MainActivity extends BridgeActivity {
         "if(v===n)return;v=n;window._rushflixVideo=n;" +
         // Keep the TV screen on only while this video is actually playing.
         "n.addEventListener('playing',function(){try{RushFlixProgress.playState(true);}catch(e){}});" +
+        // The player hides its bar from ONE 2.8 s timer armed by pointer events, and skips
+        // the hide if the video is paused when it fires (it never re-arms). Autoplay after
+        // loadedmetadata / buffering often takes longer than that → bar stuck for good.
+        // So: re-arm on every 'playing', plus a watchdog for any other stuck case.
+        "n.addEventListener('playing',wake);" +
+        "setInterval(function(){if(v===n&&!n.paused&&!document.querySelector('.jw-menu.is-open')&&" +
+        "root().classList.contains('show-ui')&&Date.now()-lastAct>4000)wake();},1500);" +
         "['pause','ended','emptied','error'].forEach(function(t){" +
         "n.addEventListener(t,function(){try{RushFlixProgress.playState(false);}catch(e){}});});" +
         // Autoplay only once the player is ready. Our script sees the <video> before the

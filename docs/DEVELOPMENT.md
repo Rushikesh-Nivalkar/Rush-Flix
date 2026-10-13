@@ -112,7 +112,7 @@ npm run deploy:webos          # optional: ares-install + launch on the paired TV
   - New ad domain seen? Check what it delivers first, then add it to `scripts/adblock-custom.txt` and run `npm run update:blocklist`.
   - Browser / LG webOS use a plain iframe and get none of this.
 - **Autoplay waits for `loadedmetadata`** (v2.7.8). Playing the moment the `<video>` appears beat the player's own `play` listener, so it thought it was paused: on phones the pause button never appeared (touch layout shows centre controls only under `.jw.show-ui.playing`).
-- **`wake()`** = synthetic `pointermove` on `#player` after every remote command. The Cineby player's 2.8 s auto-hide only restarts from pointer events, so without it the bar stuck on screen after pause → play.
+- **`wake()`** = synthetic `pointermove` on `#player` after every remote command. The Cineby player's 2.8 s auto-hide only restarts from pointer events, so without it the bar stuck on screen after pause → play. The timer also skips the hide if the video is paused when it fires and never re-arms — so a slow start (autoplay waits for `loadedmetadata`) or buffering left the bar + title up for the whole film (v2.7.9). Fix: `wake()` on every `playing` event + a 1.5 s watchdog that re-arms a bar still showing 4 s after the last input while playing.
 - **Remote map** (`dispatchKeyEvent`, overlay up):
 
   | Key | Normal | Controls mode |
