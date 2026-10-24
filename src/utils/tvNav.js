@@ -1,17 +1,5 @@
 import { useEffect, useCallback } from "react";
 
-export const TV_KEYS = {
-  UP: ["ArrowUp"],
-  DOWN: ["ArrowDown"],
-  LEFT: ["ArrowLeft"],
-  RIGHT: ["ArrowRight"],
-  ENTER: ["Enter", " "],
-  BACK: ["Backspace", "Escape", "GoBack"],
-  PLAY_PAUSE: ["MediaPlayPause", "p"],
-  FAST_FORWARD: ["MediaFastForward"],
-  REWIND: ["MediaRewind"],
-};
-
 const FOCUSABLE = [
   'a[href]', 'button:not([disabled])', 'input:not([disabled])',
   'select:not([disabled])', '[tabindex]:not([tabindex="-1"])',
@@ -25,19 +13,56 @@ function getFocusableElements(container) {
   );
 }
 
-// Scroll .tv-main to keep the focused element visible.
-function scrollMainToShow(el, direction) {
-  const mainEl = document.querySelector(".tv-main");
-  if (!mainEl) { el.scrollIntoView({ block: "nearest", behavior: "smooth" }); return; }
-  const elRect = el.getBoundingClientRect();
-  const mainRect = mainEl.getBoundingClientRect();
-  const stickyHeader = document.querySelector("[data-settings-header]");
-  const topOffset = 80 + (stickyHeader ? stickyHeader.getBoundingClientRect().height : 0);
-  if (direction === "up" && elRect.top < mainRect.top + topOffset) {
-    mainEl.scrollBy({ top: elRect.top - mainRect.top - topOffset, behavior: "smooth" });
-  } else if (direction === "down" && elRect.bottom > mainRect.bottom - 16) {
-    mainEl.scrollBy({ top: elRect.bottom - mainRect.bottom + 16, behavior: "smooth" });
+// Scroll .tv-main so the focused element sits in the visible band below the fixed
+// navbar (content scrolls UNDER it). One absolute scroll target per press — the
+// browser's own focus scroll is suppressed (preventScroll) — so fast presses
+// converge instead of compounding half-finished smooth scrolls.
+//  - Anything that fits on the first screen → scroll to the top (hero, first rows).
+//  - Inside a row section that fits → section top just under the navbar
+//    (title + genre picker + cards all visible, Netflix-style).
+//  - Otherwise → minimal scroll to bring the element inside the band.
+const NAV_BLOCKS = ".section, .library-section";
+// Inner vertical scroll boxes (Live TV channel list, panels, dialogs): the
+// browser's focus scroll is off, so bring the element inside each of them.
+// Returns the outermost such box (the page then scrolls to show the box).
+function scrollInnerToShow(el, mainEl) {
+  let outer = null;
+  for (let box = el.parentElement; box && box !== mainEl && box !== document.body; box = box.parentElement) {
+    const oy = getComputedStyle(box).overflowY;
+    if ((oy !== "auto" && oy !== "scroll") || box.scrollHeight <= box.clientHeight) continue;
+    outer = box;
+    const r = el.getBoundingClientRect();
+    const b = box.getBoundingClientRect();
+    if (r.top < b.top + 8) box.scrollBy({ top: r.top - b.top - 8, behavior: "smooth" });
+    else if (r.bottom > b.bottom - 8) box.scrollBy({ top: r.bottom - b.bottom + 8, behavior: "smooth" });
   }
+  return outer;
+}
+
+function scrollMainToShow(el) {
+  const mainEl = document.querySelector(".tv-main");
+  const navbar = document.querySelector(".tv-navbar");
+  if (navbar?.contains(el)) return;
+  const box = scrollInnerToShow(el, mainEl);
+  if (!mainEl || !mainEl.contains(el)) { el.scrollIntoView({ block: "nearest", behavior: "smooth" }); return; }
+  const mainRect = mainEl.getBoundingClientRect();
+  let top = mainRect.top;
+  if (navbar) top = Math.max(top, navbar.getBoundingClientRect().bottom);
+  const sticky = mainEl.querySelector("[data-settings-header]");
+  if (sticky) top = Math.max(top, sticky.getBoundingClientRect().bottom);
+  top += 12;
+  const bottom = mainRect.bottom - 16;
+  const r = (box || el).getBoundingClientRect();
+  const block = el.closest(NAV_BLOCKS);
+  const br = block && mainEl.contains(block) ? block.getBoundingClientRect() : null;
+  const cur = mainEl.scrollTop;
+  let target = cur;
+  if (cur + r.bottom <= bottom) target = 0;                       // fits on the first screen
+  else if (br && br.height <= bottom - top) target = cur + br.top - top;
+  else if (r.top < top) target = cur + r.top - top;
+  else if (r.bottom > bottom) target = cur + r.bottom - bottom;
+  target = Math.max(0, Math.min(Math.round(target), mainEl.scrollHeight - mainEl.clientHeight));
+  if (Math.abs(target - cur) > 1) mainEl.scrollTo({ top: target, behavior: "smooth" });
 }
 
 // Scroll a horizontal row (cards, season tabs…) so the focused element sits fully
@@ -119,12 +144,32 @@ function closestCx(items, targetCx) {
   );
 }
 
+// The navbar is fixed on top while the page scrolls UNDER it, so it can't share
+// one geometric row list with the page: a row hidden behind it sorted above it,
+// and Up went card row → navbar → hidden row (skipping the visible one). The
+// navbar is its own zone: Up from the page's top row enters it, Down from it
+// lands on the first row visible below it.
 function getNextFocus(activeEl, direction) {
   const elements = getFocusableElements();
   if (!elements.length) return null;
   if (!elements.includes(activeEl)) return elements[0];
 
-  const rows = buildRows(elements);
+  const navbar = document.querySelector(".tv-navbar");
+  const navEls = navbar ? elements.filter((el) => navbar.contains(el)) : [];
+  const pageEls = elements.filter((el) => !navEls.includes(el));
+  const inNav = navEls.includes(activeEl);
+  if (inNav && direction === "up") return null;
+  if (inNav && direction === "down") {
+    if (!pageEls.length) return null;
+    const navBottom = navbar.getBoundingClientRect().bottom;
+    const pageRows = buildRows(pageEls);
+    const ax = activeEl.getBoundingClientRect();
+    const firstVisible = pageRows.find((row) =>
+      row.items.some((i) => i.el.getBoundingClientRect().bottom > navBottom + 4)) || pageRows[0];
+    return closestCx(firstVisible.items, ax.left + ax.width / 2).el;
+  }
+
+  const rows = buildRows(inNav ? navEls : pageEls);
   let rowIdx = -1;
   let colIdx = -1;
   for (let r = 0; r < rows.length; r++) {
@@ -146,9 +191,8 @@ function getNextFocus(activeEl, direction) {
         ? closestCx(rows[rowIdx + 1].items, activeItem.cx).el
         : null;
     case "up":
-      return rowIdx > 0
-        ? closestCx(rows[rowIdx - 1].items, activeItem.cx).el
-        : null;
+      if (rowIdx > 0) return closestCx(rows[rowIdx - 1].items, activeItem.cx).el;
+      return navEls.length ? closestCx(buildRows(navEls)[0].items, activeItem.cx).el : null;
     default:
       return null;
   }
@@ -167,21 +211,20 @@ export function useTVNavigation({ onBack } = {}) {
     if (next) {
       // When navigating up into the navbar, land on the currently active tab
       const navbar = document.querySelector(".tv-navbar");
-      if (direction === "up" && navbar && navbar.contains(next)) {
+      if (direction === "up" && navbar && navbar.contains(next) && !navbar.contains(active)) {
         const activeBtn = navbar.querySelector("[data-nav-active='true']");
-        (activeBtn || next).focus();
-      } else if (direction === "left" || direction === "right") {
-        next.focus({ preventScroll: true });
+        (activeBtn || next).focus({ preventScroll: true });
       } else {
-        next.focus();
+        next.focus({ preventScroll: true });
       }
       scrollRowToShow(next);
-      scrollMainToShow(next, direction);
+      scrollMainToShow(next);
     } else if (direction === "up") {
       const mainEl = document.querySelector(".tv-main");
       if (mainEl && mainEl.scrollTop > 0) {
         mainEl.scrollTo({ top: 0, behavior: "smooth" });
-        setTimeout(() => getFocusableElements()[0]?.focus(), 300);
+        const inNav = document.querySelector(".tv-navbar")?.contains(active);
+        if (!inNav) setTimeout(() => getFocusableElements()[0]?.focus({ preventScroll: true }), 300);
       }
     }
   }, []);

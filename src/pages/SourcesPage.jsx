@@ -1,6 +1,6 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef } from "react";
 import { storage, STORAGE_KEYS } from "../utils/storage";
-import { BackIcon, TrashIcon } from "../components/Icons";
+import { TrashIcon } from "../components/Icons";
 import { getPublicDomainMeta, clearPublicDomainCache, fetchPublicDomainMovies } from "../utils/archiveOrg";
 import { fetchJsonCatalogue, clearCatalogueCache, getCatalogueMeta } from "../utils/jsonCatalogue";
 

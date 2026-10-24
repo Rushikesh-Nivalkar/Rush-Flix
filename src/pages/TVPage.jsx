@@ -147,6 +147,17 @@ export default function TVPage({
     setPlaying({ season, episode: ep.episode_number, name: ep.name });
   }
 
+  // Android player autoplayed the next episode in place (or the viewer picked one in
+  // the player's own menu): follow it, so progress, Watched and Continue Watching
+  // land on the episode actually playing. The player itself is not reopened.
+  function handlePlayerEpisode(s, e) {
+    if (!playing || (playing.season === s && playing.episode === e)) return;
+    const ep = s === season ? episodes.find((x) => x.episode_number === e) : null;
+    onHistory({ ...item, media_type: "tv", season: s, episode: e, episodeName: ep?.name || "" });
+    if (s !== season) setSeason(s);
+    setPlaying({ season: s, episode: e, name: ep?.name || "" });
+  }
+
   const aired = (date) => !!date && date <= new Date().toISOString().slice(0, 10);
   const queuedFor = useRef(null); // progress arrives every few seconds — queue once per episode
 
@@ -217,6 +228,7 @@ export default function TVPage({
         episodeList={episodes}
         currentEpIndex={epIdx}
         onNextEpisode={handleNextEpisode}
+        onEpisodeChange={handlePlayerEpisode}
         malId={anilistData?.idMal || null}
         offline={offline}
         prefilledUrl={getSourceUrl("tv", item.id, playing.season, playing.episode)}

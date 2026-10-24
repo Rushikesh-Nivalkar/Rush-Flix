@@ -131,8 +131,6 @@ export async function clearAppCaches() {
   localStorage.removeItem("rushflix_trendingCache");
 }
 
-export const isElectron = false;
-
 export const getApiKey = () => storage.get(STORAGE_KEYS.API_KEY);
 
 // Returns per-profile storage for the currently active profile.

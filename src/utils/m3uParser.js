@@ -1,10 +1,6 @@
 const M3U_URL      = "https://iptv-org.github.io/iptv/index.m3u";
 const COUNTRY_M3U  = (code) => `https://iptv-org.github.io/iptv/countries/${code.toLowerCase()}.m3u`;
-const CATEGORY_M3U = (id)   => `https://iptv-org.github.io/iptv/categories/${id.toLowerCase()}.m3u`;
-const LANGUAGE_M3U = (code) => `https://iptv-org.github.io/iptv/languages/${code.toLowerCase()}.m3u`;
 
-const CATEGORIES_API = "https://iptv-org.github.io/api/categories.json";
-const LANGUAGES_API  = "https://iptv-org.github.io/api/languages.json";
 const CHANNELS_API   = "https://iptv-org.github.io/api/channels.json";
 const GUIDES_API     = "https://iptv-org.github.io/api/guides.json";
 
@@ -15,11 +11,7 @@ const META_TTL  = 24 * 60 * 60 * 1000; // 24h — slowly-changing JSON metadata
 let _channels = null, _fetchTime = 0, _fetchPromise = null;
 
 const _countryChannels = {}, _countryFetchTimes = {}, _countryFetchPromises = {};
-const _catChannels     = {}, _catTimes     = {}, _catPromises     = {};
-const _langChannels    = {}, _langTimes    = {}, _langPromises    = {};
 
-let _categories = null, _categoriesTime = 0, _categoriesPromise = null;
-let _languages  = null, _languagesTime  = 0, _languagesPromise  = null;
 let _channelsMeta = null, _channelsMetaTime = 0, _channelsMetaPromise = null;
 let _guides = null, _guidesTime = 0, _guidesPromise = null;
 
@@ -72,43 +64,8 @@ export async function fetchChannels() {
 }
 
 export const fetchChannelsByCountry  = makeMFetcher(_countryChannels, _countryFetchTimes, _countryFetchPromises, COUNTRY_M3U);
-export const fetchChannelsByCategory = makeMFetcher(_catChannels,  _catTimes,  _catPromises,  CATEGORY_M3U);
-export const fetchChannelsByLanguage = makeMFetcher(_langChannels, _langTimes, _langPromises, LANGUAGE_M3U);
 
 // ── JSON metadata fetchers ────────────────────────────────────────────────────
-function makeJsonFetcher(getRef, setRef, getTime, setTime, getPromise, setPromise, url) {
-  return async function () {
-    if (getRef() && Date.now() - getTime() < META_TTL) return getRef();
-    if (getPromise()) return getPromise();
-    const p = fetch(url)
-      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then((data) => { setRef(data); setTime(Date.now()); setPromise(null); return data; })
-      .catch((err) => { setPromise(null); throw err; });
-    setPromise(p);
-    return p;
-  };
-}
-
-export async function fetchCategoriesJson() {
-  if (_categories && Date.now() - _categoriesTime < META_TTL) return _categories;
-  if (_categoriesPromise) return _categoriesPromise;
-  _categoriesPromise = fetch(CATEGORIES_API)
-    .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-    .then((data) => { _categories = data; _categoriesTime = Date.now(); _categoriesPromise = null; return _categories; })
-    .catch((err) => { _categoriesPromise = null; throw err; });
-  return _categoriesPromise;
-}
-
-export async function fetchLanguagesJson() {
-  if (_languages && Date.now() - _languagesTime < META_TTL) return _languages;
-  if (_languagesPromise) return _languagesPromise;
-  _languagesPromise = fetch(LANGUAGES_API)
-    .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-    .then((data) => { _languages = data; _languagesTime = Date.now(); _languagesPromise = null; return _languages; })
-    .catch((err) => { _languagesPromise = null; throw err; });
-  return _languagesPromise;
-}
-
 // channels.json → Map<tvgId, {is_nsfw, logo, ...}> for enrichment
 export async function fetchChannelsMeta() {
   if (_channelsMeta && Date.now() - _channelsMetaTime < META_TTL) return _channelsMeta;

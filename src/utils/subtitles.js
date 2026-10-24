@@ -20,7 +20,3 @@ export const SUBTITLE_LANGUAGES = [
   { code: "cs", label: "Czech" },
   { code: "hu", label: "Hungarian" },
 ];
-
-export const LANG_LABEL = Object.fromEntries(
-  SUBTITLE_LANGUAGES.map((l) => [l.code, l.label]),
-);

@@ -125,6 +125,17 @@ npm run deploy:webos          # optional: ares-install + launch on the paired TV
   | Back | close the player | close the open menu, else leave controls mode |
 
   Controls mode lives in `PLAYER_SCRIPT` (`ctl_enter/ctl_move/ctl_ok/ctl_back`, `.rf-focus` outline); the player frame reports it via `RushFlixProgress.controlsMode(bool)`. Navigable: visible `#controls button.jw-btn` + centre/Up Next buttons (Airplay/Cast/Fullscreen skipped), or the open `.jw-menu`'s rows. It ends by itself when the player hides its bar. Some titles' quality lists map rows oddly (720p → 1080p) — that's the player, a mouse click does the same.
+- **Autoplay next episode + "Are you still watching?"** (Android, series only):
+  - Cineby has its own auto-next (8 s countdown `#upnext`, loads the next episode **in place**) but ships it off (`CONFIG.autoNext:false`, URL params ignored). `PLAYER_SCRIPT` turns it on from its 1 s check — the page sets `CONFIG` after the `<video>` appears, so doing it in `setup()` is too early.
+  - Java counts `autoStreak` = episodes finished (`RushFlixProgress.ended()`) with no remote press / tap; any key (`dispatchKeyEvent`) or touch resets it, as does opening a player. `AUTOPLAY_LIMIT = 3`.
+  - When the countdown shows and `autoNextAllowed()` is false, the script clicks `#upnextPlay` with `hold=true` (every `play` is paused) and shows `#rf-still` (Continue watching / Stop). No timeout. Continue → plays; Stop or Back → `RushFlixProgress.stop()` → player closes.
+  - The player posts `TV_STATE {season, episode}` to its parent on every episode switch; the script forwards it (`RushFlixProgress.episode`) → React `rushflix_episode` → `TVPage.handlePlayerEpisode` updates `playing`, so progress / Watched / Continue Watching follow the episode really playing. The overlay is not reopened (TVPlayer's `url` state is fixed after mount).
+  - LG / browser: plain iframe, no script → no autoplay (episode just ends).
+
+### TV navigation (`src/utils/tvNav.js`)
+- Row-based: focusables are grouped into rows by vertical centre; Left/Right within a row, Up/Down to the nearest item of the next row.
+- **The fixed navbar is its own zone.** The page scrolls *under* it, so mixing it into one geometric list made a hidden row sort above it (Up went card → navbar → hidden row, skipping rows). Up from the page's top row enters the navbar (active tab); Down from it goes to the first row visible below it.
+- **One absolute scroll per press** (`focus({preventScroll:true})` + `scrollMainToShow`): anything on the first screen → top; inside a `.section` / `.library-section` that fits → section top just under the navbar's real bottom; else minimal. Inner vertical scroll boxes are scrolled too (`scrollInnerToShow`). Rows: `scrollRowToShow` + `applyRowBleed`.
 
 ### Update checker (`src/utils/updateChecker.js`)
 - Android: native HTTP (`CapacitorHttp.request`). Browser/webOS: `fetch` to **`api.github.com/repos/…/releases/latest`**.

@@ -19,11 +19,6 @@ export function getLanSyncConfig() {
   };
 }
 
-export function setLanSyncConfig({ enabled, url }) {
-  localStorage.setItem(SYNC_ENABLED_KEY, enabled ? "true" : "false");
-  localStorage.setItem(SYNC_URL_KEY, url || "");
-}
-
 function buildPayload(saved, progress, watched) {
   return {
     version: 1,

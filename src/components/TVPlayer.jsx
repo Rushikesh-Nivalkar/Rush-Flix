@@ -32,6 +32,7 @@ export default function TVPlayer({
   episodeList = [],
   currentEpIndex = -1,
   onNextEpisode = null,
+  onEpisodeChange = null,
   // AniSkip
   malId = null,
   // Network
@@ -293,6 +294,7 @@ export default function TVPlayer({
   // Listen for progress and player-closed messages from the native bridge.
   // rushflix_progress: relayed by RushFlixProgress JavascriptInterface every 5s.
   // rushflix_player_closed: fired when user presses Back on the TV remote.
+  // rushflix_episode: the player moved to another episode in place (autoplay next).
   useEffect(() => {
     if (mode !== "iframe") return;
     const handler = (e) => {
@@ -307,10 +309,13 @@ export default function TVPlayer({
       if (d.type === "rushflix_player_closed") {
         onClose();
       }
+      if (d.type === "rushflix_episode") {
+        onEpisodeChange?.(d.season, d.episode);
+      }
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
-  }, [mode, onProgress, onTimestamp, onClose]);
+  }, [mode, onProgress, onTimestamp, onClose, onEpisodeChange]);
 
   // Browser fallback: focus iframe on load (no postMessage — no injected script in browser).
   const handleIframeLoad = useCallback(() => {

@@ -6,14 +6,14 @@ import TVNavBar from "./components/TVNavBar";
 import SearchModal from "./components/SearchModal";
 import SetupScreen from "./components/SetupScreen";
 import ProfileSelectPage from "./pages/ProfileSelectPage";
-import { storage, secureStorage, STORAGE_KEYS, profileStorage, clearAppCaches } from "./utils/storage";
+import { storage, secureStorage, STORAGE_KEYS, profileStorage } from "./utils/storage";
 import { applyAccentColor } from "./utils/appearance";
 import { tmdbFetch, setApiErrorHandlers } from "./utils/api";
 import { fetchAllCatalogues } from "./utils/jsonCatalogue";
 import { getLanSyncConfig, pullSync, schedulePush } from "./utils/lanSync";
 import { useTVNavigation } from "./utils/tvNav";
 import {
-  getProfiles, getActiveProfileId, setActiveProfileId, getActiveProfile,
+  setActiveProfileId, getActiveProfile,
 } from "./utils/profiles";
 import TVPlayer from "./components/TVPlayer";
 import { fetchLatestRelease, isNewerVersion, APP_VERSION } from "./utils/updateChecker";
