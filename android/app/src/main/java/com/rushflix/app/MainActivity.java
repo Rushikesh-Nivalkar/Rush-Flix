@@ -24,6 +24,7 @@ import androidx.webkit.WebViewFeature;
 import com.getcapacitor.BridgeActivity;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
 
 public class MainActivity extends BridgeActivity {
@@ -50,6 +51,12 @@ public class MainActivity extends BridgeActivity {
     private static final int AUTOPLAY_LIMIT = 3;
     private volatile int autoStreak = 0;
     private volatile String lastEpisode = null;
+    // URL the overlay player was opened with (…/tv/{id}/{s}/{e}); next episodes reuse it.
+    private volatile String playerUrl = null;
+    // Label of the next episode to open HELD behind the still-watching prompt ("" = none).
+    private volatile String pendingHold = "";
+    // Our own centre taps (landing Play button) must not count as "someone's watching".
+    private volatile boolean syntheticTouch = false;
     // False when the WebView can't inject at document start → onPageFinished fallback.
     private boolean scriptInAllFrames = false;
 
@@ -91,7 +98,7 @@ public class MainActivity extends BridgeActivity {
         "function vis(e){var r=e.getBoundingClientRect();if(r.width<2||r.height<2)return false;" +
         "var cs=getComputedStyle(e);return cs.display!=='none'&&cs.visibility!=='hidden'&&cs.pointerEvents!=='none';}" +
         // Controls mode: remote highlight over the player's buttons / open menu items.
-        "function items(){var ps=document.getElementById('rf-still');if(ps)return [].slice.call(ps.querySelectorAll('button'));" +
+        "function items(){var ps=document.getElementById('rf-still')||document.getElementById('rf-next');if(ps)return [].slice.call(ps.querySelectorAll('button'));" +
         "var m=document.querySelector('.jw-menu.is-open');" +
         "var l=m?m.querySelectorAll('.jw-row,.jw-result,.jw-menu-close,button,select,input')" +
         ":document.querySelectorAll('#controls button.jw-btn,#rew,#bigPlay,#fwd,#upnextPlay,#upnextCancel');" +
@@ -109,7 +116,7 @@ public class MainActivity extends BridgeActivity {
         // dir: 1=left 2=right 3=up 4=down. Bar = left/right; open menu = up/down (left/right too).
         "function ctlMove(d){wake();var l=items();if(!l.length)return;" +
         "var cur=l.indexOf(document.querySelector('.rf-focus'));if(cur<0)cur=0;" +
-        "var menu=!!document.querySelector('.jw-menu.is-open,#rf-still');" +
+        "var menu=!!document.querySelector('.jw-menu.is-open,#rf-still,#rf-next');" +
         "var st=menu?((d===2||d===4)?1:-1):(d===2?1:d===1?-1:0);" +
         "sel=Math.max(0,Math.min(l.length-1,cur+st));mark(l);}" +
         "function ctlOk(){var l=items(),e=document.querySelector('.rf-focus')||l[sel];if(!e)return;" +
@@ -122,6 +129,7 @@ public class MainActivity extends BridgeActivity {
         "for(i=0;i<l.length;i++)if(!l[i].classList.contains('jw-menu-close'))return i;return 0;}" +
         // Back: close an open menu (player's own Escape handler) else leave controls mode.
         "function ctlBack(){if(document.getElementById('rf-still')){stillStop();return;}" +
+        "var rn=document.getElementById('rf-no');if(rn){rn.click();return;}" +
         "if(document.querySelector('.jw-menu.is-open')){" +
         "document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));" +
         "[].forEach.call(document.querySelectorAll('.jw-menu.is-open'),function(m){m.classList.remove('is-open');});" +
@@ -131,19 +139,38 @@ public class MainActivity extends BridgeActivity {
         "function setPlaying(want){if(!v||want===!v.paused)return;var b=document.querySelector('#play');" +
         "if(b&&vis(b))b.click();else if(want)v.play().catch(function(){});else v.pause();}" +
         // ── Autoplay next episode, Netflix-style ──
-        // Cineby's own auto-next (8 s countdown, loads the next episode in place) is
-        // switched on here; Java counts episodes finished with no remote press/tap. At
-        // the limit the next episode is loaded but held paused behind the Are-you-still-
-        // watching prompt — no timeout, it stays until Continue / Stop / Back.
-        "var hold=false;" +
-        "function still(){if(document.getElementById('rf-still'))return;" +
-        "var nt=(document.getElementById('upnextTitle')||{}).textContent||'';hold=true;" +
-        "var pb=document.getElementById('upnextPlay');if(pb)pb.click();" +
+        // Cineby's auto-next is switched on only so it works out WHICH episode is next
+        // (it shows #upnext with the S/E). Its own in-place load is cancelled: its
+        // single-use stream pass expires ~1 min after the page opens, so after a real
+        // episode it failed (media unavailable / replayed the old episode). Instead the
+        // app reloads the player on the next episode (fresh page, fresh pass) after our
+        // own 8 s countdown. Java counts episodes finished with no remote press/tap; at
+        // the limit the next episode is reloaded HELD (paused) behind the
+        // Are-you-still-watching prompt — no timeout, it stays until Continue / Stop / Back.
+        "var hold=false,nx=false,holdChecked=false;" +
+        "function pad2(x){return (x<10?'0':'')+x;}" +
+        "function box(id){var d=document.createElement('div');d.id=id;return d;}" +
+        "function btn(id,label,bg){var x=document.createElement('button');x.id=id;x.textContent=label;" +
+        "x.style.cssText='font-size:20px;padding:12px 28px;border:0;border-radius:8px;color:#fff;cursor:pointer;background:'+bg;return x;}" +
+        "function goNext(s,e,h){try{RushFlixProgress.next(s,e,h);}catch(x){}}" +
+        "function upNext(s,e){var d=box('rf-next'),t=8;" +
+        "d.style.cssText='position:absolute;right:4%;bottom:14%;z-index:2147483647;background:#141414;border-radius:12px;padding:20px 24px;color:#fff;font-family:sans-serif;min-width:300px';" +
+        "var h=document.createElement('div');h.style.cssText='font-size:16px;opacity:.75;margin-bottom:4px';h.textContent='Up next';" +
+        "var n=document.createElement('div');n.style.cssText='font-size:24px;font-weight:700;margin-bottom:16px';n.textContent='S'+pad2(s)+' E'+pad2(e);" +
+        "var a=document.createElement('div');a.style.cssText='display:flex;gap:12px';" +
+        "var go=btn('rf-go','Play now ('+t+')','#e50914'),no=btn('rf-no','Cancel','#333');a.appendChild(go);a.appendChild(no);" +
+        "d.appendChild(h);d.appendChild(n);d.appendChild(a);(document.getElementById('player')||document.body).appendChild(d);" +
+        "var iv=setInterval(function(){t--;go.textContent='Play now ('+t+')';if(t<=0){clearInterval(iv);goNext(s,e,false);}},1000);" +
+        "go.onclick=function(){clearInterval(iv);goNext(s,e,false);};" +
+        "no.onclick=function(){clearInterval(iv);d.remove();setCtl(false);wake();};" +
+        "css();setCtl(true);sel=0;mark(items());}" +
+        "function still(label){if(document.getElementById('rf-still'))return;hold=true;" +
+        "if(v&&!v.paused)v.pause();var nt=label||'';" +
         "var d=document.createElement('div');d.id='rf-still';" +
         "d.style.cssText='position:absolute;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.72);font-family:sans-serif';" +
         "var b=document.createElement('div');b.style.cssText='background:#141414;border-radius:12px;padding:32px 40px;text-align:center;color:#fff;max-width:80%';" +
         "var h=document.createElement('div');h.textContent='Are you still watching?';h.style.cssText='font-size:28px;font-weight:700;margin-bottom:8px';" +
-        "var s=document.createElement('div');s.textContent=nt?'Next: '+nt:'';s.style.cssText='font-size:18px;opacity:.75;margin-bottom:24px';" +
+        "var s=document.createElement('div');s.textContent=nt;s.style.cssText='font-size:18px;opacity:.75;margin-bottom:24px';" +
         "var a=document.createElement('div');a.style.cssText='display:flex;gap:16px;justify-content:center';" +
         "[['rf-cont','Continue watching','#e50914'],['rf-stop','Stop','#333']].forEach(function(o){var x=document.createElement('button');" +
         "x.id=o[0];x.textContent=o[1];x.style.cssText='font-size:20px;padding:12px 28px;border:0;border-radius:8px;color:#fff;cursor:pointer;background:'+o[2];a.appendChild(x);});" +
@@ -157,6 +184,7 @@ public class MainActivity extends BridgeActivity {
         "function apply(a,x){" +
         "if(!v)return;" +
         "if(hold&&(a==='toggle'||a==='play')){stillContinue();return;}" +
+        "var rg=document.getElementById('rf-go');if(rg&&(a==='toggle'||a==='play')){rg.click();return;}" +
         "if(a==='toggle'){setPlaying(v.paused);wake();}" +
         "else if(a==='play'){setPlaying(true);wake();}" +
         "else if(a==='pause'){setPlaying(false);wake();}" +
@@ -207,14 +235,21 @@ public class MainActivity extends BridgeActivity {
         // after the <video> appears, so switch auto-next on from the 1 s check, not here.
         "n.addEventListener('ended',function(){try{RushFlixProgress.ended();}catch(e){}});" +
         "n.addEventListener('play',function(){if(hold)n.pause();});" +
-        "setInterval(function(){" +
+        // This page was opened as the held episode (limit reached) → prompt over it.
+        "function checkHold(){if(holdChecked||!document.getElementById('controls'))return;holdChecked=true;" +
+        "var lab='';try{lab=RushFlixProgress.takeHold();}catch(e){}if(lab)still(lab);}" +
+        "checkHold();" +
+        "setInterval(function(){checkHold();" +
         "try{var C=window.CONFIG;if(C&&C.mediaType==='tv'&&C.streamBase&&!C.autoNext)C.autoNext=true;}catch(e){}" +
         "var un=document.getElementById('upnext');" +
-        "if(v!==n||hold||!un||getComputedStyle(un).display==='none')return;" +
-        "var ok=true;try{ok=RushFlixProgress.autoNextAllowed();}catch(e){}if(!ok)still();},1000);" +
+        "if(v!==n||nx||hold||!un||getComputedStyle(un).display==='none')return;" +
+        "var m=((document.getElementById('upnextTitle')||{}).textContent||'').match(/S\\s*0*(\\d+)\\s*E\\s*0*(\\d+)/i);" +
+        "if(!m)return;nx=true;var cb=document.getElementById('upnextCancel');if(cb)cb.click();" +
+        "var s=+m[1],e=+m[2],ok=true;try{ok=RushFlixProgress.autoNextAllowed();}catch(x){}" +
+        "if(ok)upNext(s,e);else goNext(s,e,true);},1000);" +
         // Leave controls mode when the player hides its bar (no menu / prompt open).
         "try{var ro=root();new MutationObserver(function(){" +
-        "if(ctl&&!ro.classList.contains('show-ui')&&!document.querySelector('.jw-menu.is-open,#rf-still'))setCtl(false);" +
+        "if(ctl&&!ro.classList.contains('show-ui')&&!document.querySelector('.jw-menu.is-open,#rf-still,#rf-next'))setCtl(false);" +
         "}).observe(ro,{attributes:true,attributeFilter:['class']});}catch(e){}" +
         "try{RushFlixProgress.videoReady();}catch(e){}" +
         "setInterval(function(){" +
@@ -304,6 +339,22 @@ public class MainActivity extends BridgeActivity {
         public boolean autoNextAllowed() {
             return autoStreak < AUTOPLAY_LIMIT;
         }
+        // Autoplay: open the next episode in a fresh player page. Cineby's in-place
+        // switch can't be used — its single-use stream pass expires about a minute
+        // after the page loads. holdIt = limit reached: open it paused behind the prompt.
+        @JavascriptInterface
+        public void next(int season, int episode, boolean holdIt) {
+            episode(season, episode);
+            runOnUiThread(() -> loadNextEpisode(season, episode, holdIt));
+        }
+
+        // Read once by the new page's player frame: non-empty = show the prompt, held.
+        @JavascriptInterface
+        public String takeHold() {
+            String h = pendingHold;
+            pendingHold = "";
+            return h;
+        }
 
         // "Are you still watching?" → Stop: leave the player.
         @JavascriptInterface
@@ -358,10 +409,36 @@ public class MainActivity extends BridgeActivity {
         MotionEvent up = MotionEvent.obtain(t, t + 50, MotionEvent.ACTION_UP, x, y, 0);
         down.setSource(InputDevice.SOURCE_TOUCHSCREEN);
         up.setSource(InputDevice.SOURCE_TOUCHSCREEN);
+        syntheticTouch = true;
         overlayWebView.dispatchTouchEvent(down);
         overlayWebView.dispatchTouchEvent(up);
+        syntheticTouch = false;
         down.recycle();
         up.recycle();
+    }
+
+    // Autoplay next: reload the player on …/tv/{id}/{season}/{episode} and press the
+    // landing page's Play for the viewer (it needs a tap before the video exists).
+    private void loadNextEpisode(int season, int episode, boolean holdIt) {
+        if (!overlayVisible || overlayWebView == null || playerUrl == null) return;
+        String url = playerUrl.replaceFirst("/tv/(\\d+)/\\d+/\\d+", "/tv/$1/" + season + "/" + episode);
+        if (url.equals(playerUrl)) return; // not a series URL
+        Log.d(TAG, "Autoplay next → " + url + (holdIt ? " (held)" : ""));
+        playerUrl = url;
+        pendingHold = holdIt ? String.format(Locale.US, "S%02d E%02d", season, episode) : "";
+        pendingSeekTo = 0;
+        videoAttached = false;
+        controlsMode = false;
+        overlayWebView.loadUrl(url);
+        autoTap(0);
+    }
+
+    private void autoTap(int attempt) {
+        overlayWebView.postDelayed(() -> {
+            if (!overlayVisible || videoAttached || attempt >= 6) return;
+            tapPlayerCentre();
+            autoTap(attempt + 1);
+        }, 2500);
     }
 
     private void setupOverlayWebView(WebView mainWebView) {
@@ -434,7 +511,7 @@ public class MainActivity extends BridgeActivity {
 
         // Phone: a tap on the player also counts as "someone's watching".
         overlayWebView.setOnTouchListener((view, ev) -> {
-            if (ev.getActionMasked() == MotionEvent.ACTION_DOWN) autoStreak = 0;
+            if (ev.getActionMasked() == MotionEvent.ACTION_DOWN && !syntheticTouch) autoStreak = 0;
             return false;
         });
 
@@ -455,6 +532,8 @@ public class MainActivity extends BridgeActivity {
         controlsMode = false;
         autoStreak = 0;
         lastEpisode = null;
+        playerUrl = url;
+        pendingHold = "";
         playerHost = Uri.parse(url).getHost();
         overlayWebView.setVisibility(View.VISIBLE);
         overlayWebView.bringToFront();
