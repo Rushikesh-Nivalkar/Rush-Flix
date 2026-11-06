@@ -148,6 +148,7 @@ LG only lets you install your own apps through its **Developer Mode**, and you n
 - **Pick up where you left off.** Continue Watching remembers the exact second, plus a Watchlist and Watch History.
 - **Profiles** for everyone in the house (plus a Guest mode), each with their own progress and lists.
 - **TV-first controls:** everything works with the remote, including play/pause, ±10 s skip, an episode list while watching, and a Next Episode button.
+- **Resume or start over (Android):** part-watched movies and episodes let you pick up where you left off or start from the beginning.
 - **Autoplay next episode (Android):** series keep playing like Netflix. After 3 episodes in a row without touching the remote, the next one waits behind *Are you still watching?*
 - **Live TV** from free [iptv-org](https://github.com/iptv-org/iptv) channels: search, filter by country, category or language, hide adult channels, and see the region when a channel is geo-blocked.
 - **Parental limit:** hide titles above an age rating.

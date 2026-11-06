@@ -32,6 +32,7 @@ export default function MoviePage({
 }) {
   const [details, setDetails] = useState(null);
   const [playing, setPlaying] = useState(false);
+  const [fromStart, setFromStart] = useState(false);
   const [trailerKey, setTrailerKey] = useState(null);
   const [showTrailer, setShowTrailer] = useState(false);
   const [similar, setSimilar] = useState([]);
@@ -98,8 +99,13 @@ export default function MoviePage({
     return () => { mounted = false; };
   }, [isAnime, item.id, title]);
 
-  const handlePlay = useCallback(() => {
+  // Finished movies start at the beginning; part-watched ones offer both (Android
+  // only — the player can't seek elsewhere).
+  const canResume = watchProgress > 2 && watchProgress < 95 && !isWatched;
+
+  const play = useCallback((restart) => {
     onHistory({ ...item, media_type: "movie" });
+    setFromStart(restart);
     setPlaying(true);
   }, [item, onHistory]);
 
@@ -123,8 +129,8 @@ export default function MoviePage({
       <TVPlayer
         title={title}
         progressKey={progressKey}
-        initialProgress={watchProgress}
-        initialTimestamp={timestamps[progressKey] || 0}
+        initialProgress={fromStart ? 0 : watchProgress}
+        initialTimestamp={fromStart ? 0 : timestamps[progressKey] || 0}
         onProgress={handleProgress}
         onTimestamp={handleTimestamp}
         onClose={() => setPlaying(false)}
@@ -177,12 +183,17 @@ export default function MoviePage({
             <div className="detail-overview">{overview}</div>
             <div className="detail-actions">
               {!restricted && (
-                <button className="tv-btn tv-btn-primary tv-focusable" tabIndex={0} onClick={handlePlay} data-autofocus>
+                <button className="tv-btn tv-btn-primary tv-focusable" tabIndex={0} onClick={() => play(!canResume)} data-autofocus>
                   <PlayIcon />
-                  {watchProgress > 2 && watchProgress < 95 ? "Resume" : "Watch"}
-                  {watchProgress > 2 && watchProgress < 95 && (
+                  {canResume ? "Resume" : "Watch"}
+                  {canResume && (
                     <span className="resume-pct"> ({Math.round(watchProgress)}%)</span>
                   )}
+                </button>
+              )}
+              {!restricted && canResume && window.RushFlixBridge && (
+                <button className="tv-btn tv-btn-ghost tv-focusable" tabIndex={0} onClick={() => play(true)}>
+                  Start from beginning
                 </button>
               )}
               {trailerKey && (

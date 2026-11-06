@@ -318,6 +318,10 @@ export default function App() {
   // ── rushflix:backButton (TV remote back — fired by MainActivity custom event) ─
   useEffect(() => {
     const handler = () => {
+      if (window.__dialogClose) {
+        window.__dialogClose();
+        return;
+      }
       if (window.__livePlayerActive) {
         window.dispatchEvent(new CustomEvent("rushflix:closeLivePlayer"));
         return;

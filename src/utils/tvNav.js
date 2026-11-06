@@ -150,11 +150,12 @@ function closestCx(items, targetCx) {
 // navbar is its own zone: Up from the page's top row enters it, Down from it
 // lands on the first row visible below it.
 function getNextFocus(activeEl, direction) {
-  const elements = getFocusableElements();
+  const trap = document.querySelector("[data-nav-trap]"); // open dialog: stay inside it
+  const elements = getFocusableElements(trap);
   if (!elements.length) return null;
   if (!elements.includes(activeEl)) return elements[0];
 
-  const navbar = document.querySelector(".tv-navbar");
+  const navbar = trap ? null : document.querySelector(".tv-navbar");
   const navEls = navbar ? elements.filter((el) => navbar.contains(el)) : [];
   const pageEls = elements.filter((el) => !navEls.includes(el));
   const inNav = navEls.includes(activeEl);
@@ -219,7 +220,7 @@ export function useTVNavigation({ onBack } = {}) {
       }
       scrollRowToShow(next);
       scrollMainToShow(next);
-    } else if (direction === "up") {
+    } else if (direction === "up" && !document.querySelector("[data-nav-trap]")) {
       const mainEl = document.querySelector(".tv-main");
       if (mainEl && mainEl.scrollTop > 0) {
         mainEl.scrollTo({ top: 0, behavior: "smooth" });

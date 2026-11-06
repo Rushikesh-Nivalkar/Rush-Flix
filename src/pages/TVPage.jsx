@@ -12,6 +12,7 @@ import TrailerModal from "../components/TrailerModal";
 import { isRestricted, getAgeLimitSetting } from "../utils/ageRating";
 import { storage } from "../utils/storage";
 import TVPlayer from "../components/TVPlayer";
+import ResumeDialog from "../components/ResumeDialog";
 
 export default function TVPage({
   item, apiKey, onSave, isSaved, onHistory,
@@ -33,6 +34,7 @@ export default function TVPage({
   const [season, setSeason] = useState(item.season ?? resume?.season ?? 1);
   const [seasonDetails, setSeasonDetails] = useState(null);
   const [playing, setPlaying] = useState(null);
+  const [resumeAsk, setResumeAsk] = useState(null);
   const [trailerKey, setTrailerKey] = useState(null);
   const [showTrailer, setShowTrailer] = useState(false);
   const [ageRating, setAgeRating] = useState(null);
@@ -137,9 +139,22 @@ export default function TVPage({
   // the card is what keeps the show in Continue Watching. The card is hidden
   // automatically once an episode of the show is in progress (App.jsx), and
   // replaced when that episode is finished.
-  function handlePlayEpisode(ep) {
+  function startEpisode(ep, fromStart) {
+    setResumeAsk(null);
     onHistory({ ...item, media_type: "tv", season, episode: ep.episode_number, episodeName: ep.name });
-    setPlaying({ season, episode: ep.episode_number, name: ep.name });
+    setPlaying({ season, episode: ep.episode_number, name: ep.name, fromStart });
+  }
+
+  // Part-watched: ask resume or start over (Android only — the player can't seek
+  // elsewhere). Anything else, including finished episodes, starts at the beginning.
+  function handlePlayEpisode(ep) {
+    const pk = epKey(season, ep.episode_number);
+    const pct = progress[pk] || 0;
+    if (window.RushFlixBridge && !watched[pk] && pct > 2 && pct < 95 && (timestamps[pk] || 0) > 30) {
+      setResumeAsk(ep);
+      return;
+    }
+    startEpisode(ep, true);
   }
 
   function handleNextEpisode(ep) {
@@ -216,8 +231,8 @@ export default function TVPage({
       <TVPlayer
         title={`${title} · S${playing.season}E${playing.episode}${playing.name ? ` · ${playing.name}` : ""}`}
         progressKey={pk}
-        initialProgress={progress[pk] || 0}
-        initialTimestamp={timestamps[pk] || 0}
+        initialProgress={playing.fromStart ? 0 : progress[pk] || 0}
+        initialTimestamp={playing.fromStart ? 0 : timestamps[pk] || 0}
         onProgress={handleEpProgress}
         onTimestamp={handleEpTimestamp}
         onClose={() => setPlaying(null)}
@@ -348,6 +363,15 @@ export default function TVPage({
       </div>
 
       {showTrailer && trailerKey && <TrailerModal trailerKey={trailerKey} onClose={() => setShowTrailer(false)} />}
+      {resumeAsk && (
+        <ResumeDialog
+          title={`E${resumeAsk.episode_number} · ${resumeAsk.name}`}
+          seconds={timestamps[epKey(season, resumeAsk.episode_number)] || 0}
+          onResume={() => startEpisode(resumeAsk, false)}
+          onRestart={() => startEpisode(resumeAsk, true)}
+          onCancel={() => setResumeAsk(null)}
+        />
+      )}
     </div>
   );
 }

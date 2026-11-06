@@ -133,6 +133,8 @@ npm run deploy:webos          # optional: ares-install + launch on the paired TV
   - `next()` also posts `rushflix_episode` (and `TV_STATE` from Cineby's own episode menu is forwarded the same way) → `TVPage.handlePlayerEpisode` updates `playing`, so progress / Watched / Continue Watching follow the episode really playing. React never reopens the overlay (TVPlayer's `url` state is fixed after mount).
   - LG / browser: plain iframe, no script → no autoplay (episode just ends).
 
+- **Resume / start over** (Android only: LG's plain iframe can't seek). Movies: part-watched shows Resume + Start from beginning. Episodes: OK on a part-watched one opens `ResumeDialog` (`[data-nav-trap]` keeps tvNav inside it; Back closes it via `window.__dialogClose` or its key listener). Finished titles always start at 0. `fromStart` passes position 0 to `TVPlayer`. Cineby keeps its own movie position (`vs_mov_{id}` in localStorage) and resumes from it, so `PLAYER_SCRIPT` wipes those keys at document start; the app's saved time (`seek_abs`) is the only resume source. Episodes opened by direct URL don't self-resume.
+
 ### TV navigation (`src/utils/tvNav.js`)
 - Row-based: focusables are grouped into rows by vertical centre; Left/Right within a row, Up/Down to the nearest item of the next row.
 - **The fixed navbar is its own zone.** The page scrolls *under* it, so mixing it into one geometric list made a hidden row sort above it (Up went card → navbar → hidden row, skipping rows). Up from the page's top row enters the navbar (active tab); Down from it goes to the first row visible below it.

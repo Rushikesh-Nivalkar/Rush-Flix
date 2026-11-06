@@ -77,6 +77,9 @@ public class MainActivity extends BridgeActivity {
         "(function(){" +
         "if(window.__rfInit)return;window.__rfInit=1;" +
         "try{window.open=function(){return null;};}catch(e){}" +
+        // Cineby keeps its own movie position and resumes from it, which would override
+        // a start-over. The app's saved time (seek_abs) is the only resume source.
+        "try{Object.keys(localStorage).forEach(function(k){if(k.indexOf('vs_mov_')===0)localStorage.removeItem(k);});}catch(e){}" +
         "var BAD=/\\.(cfd|cyou|sbs|space|rest|icu|buzz|quest|click|bond|mom|lol|autos|boats|yachts|motorcycles|beauty|hair|skin|makeup|pics|monster|cam)$/i;" +
         "function badSrc(u){try{var h=new URL(u,location.href).hostname;return h!==location.hostname&&BAD.test(h);}catch(e){return false;}}" +
         "try{var sd=Object.getOwnPropertyDescriptor(HTMLScriptElement.prototype,'src');" +
