@@ -78,6 +78,10 @@ public class MainActivity extends BridgeActivity {
     // PLAYER_SCRIPT saw a puzzle check and nothing has played since: arrows go to the
     // pointer even though a <video> may already exist under the puzzle.
     private volatile boolean puzzleUp = false;
+    // The video has really played since this page loaded. Until then the arrows drive
+    // the pointer: seeking / player buttons are no use before playback, and a puzzle
+    // the script can't read (canvas, image text) still gets a pointer.
+    private volatile boolean everPlayed = false;
 
     // Runs in EVERY frame of the overlay WebView (embed players nest the real
     // <video> inside cross-origin iframes, which evaluateJavascript can't reach).
@@ -348,6 +352,7 @@ public class MainActivity extends BridgeActivity {
             updateKeepAwake("overlay", playing);
             // Playing = past any puzzle check: the pointer's job is done.
             if (playing) {
+                everPlayed = true;
                 puzzleUp = false;
                 runOnUiThread(MainActivity.this::exitPointerMode);
             }
@@ -495,6 +500,7 @@ public class MainActivity extends BridgeActivity {
         pendingSeekTo = 0;
         exitPointerMode();
         puzzleUp = false;
+        everPlayed = false;
         videoAttached = false;
         controlsMode = false;
         overlayWebView.loadUrl(url);
@@ -507,6 +513,14 @@ public class MainActivity extends BridgeActivity {
             tapPlayerCentre();
             autoTap(attempt + 1);
         }, 2500);
+    }
+
+    private String appVersion() {
+        try {
+            return getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+        } catch (Exception e) {
+            return "?";
+        }
     }
 
     private int dp(float v) {
@@ -523,7 +537,7 @@ public class MainActivity extends BridgeActivity {
             pointerView.setLayoutParams(new FrameLayout.LayoutParams(size, size));
             decor.addView(pointerView);
             pointerHint = new TextView(this);
-            pointerHint.setText("Arrows move  ·  OK press / let go  ·  Back hides pointer");
+            pointerHint.setText("Arrows move  ·  OK press / let go  ·  Back hides pointer  ·  v" + appVersion());
             pointerHint.setTextColor(0xFFFFFFFF);
             pointerHint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
             pointerHint.setPadding(dp(16), dp(8), dp(16), dp(8));
@@ -697,6 +711,7 @@ public class MainActivity extends BridgeActivity {
         Log.d(TAG, "showPlayerOverlay: " + url + " seekTo=" + seekTo);
         exitPointerMode();
         puzzleUp = false;
+        everPlayed = false;
         pendingSeekTo = seekTo;
         videoAttached = false;
         controlsMode = false;
@@ -757,6 +772,15 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
+        // Hold OK, timed from press to release: works on remotes that send no key repeats.
+        int kc = event.getKeyCode();
+        boolean isOk = kc == KeyEvent.KEYCODE_DPAD_CENTER || kc == KeyEvent.KEYCODE_ENTER
+            || kc == KeyEvent.KEYCODE_NUMPAD_ENTER;
+        if (isOk && event.getAction() == KeyEvent.ACTION_UP && overlayVisible && !pointerMode
+                && event.getEventTime() - event.getDownTime() >= 600) {
+            enterPointerMode();
+            return true;
+        }
         if (event.getAction() == KeyEvent.ACTION_DOWN) {
             // ── Overlay visible: control the embed player directly ──────────
             if (overlayVisible && overlayWebView != null) {
@@ -790,7 +814,7 @@ public class MainActivity extends BridgeActivity {
                     if (event.getRepeatCount() == 1) enterPointerMode();
                     return true;
                 }
-                if (!videoAttached || puzzleUp) {
+                if (!videoAttached || puzzleUp || !everPlayed) {
                     switch (event.getKeyCode()) {
                         case KeyEvent.KEYCODE_DPAD_LEFT:
                         case KeyEvent.KEYCODE_DPAD_RIGHT:
