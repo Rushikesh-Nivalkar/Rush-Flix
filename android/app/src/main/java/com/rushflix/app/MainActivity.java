@@ -585,9 +585,12 @@ public class MainActivity extends BridgeActivity {
         pointerView.setTranslationY(pointerY - half);
     }
 
-    // Held arrow keys speed up; finer steps while dragging.
+    // Held arrow keys speed up gently. Dragging is fine-grained so a puzzle piece can be
+    // lined up exactly: one press = 2 dp (v2.10.2 moved 12 px and up to 48 px when held).
     private void movePointer(int dx, int dy, int repeat) {
-        float step = (pointerDown ? 12 : 30) * Math.min(1 + repeat / 3f, 4f);
+        float step = pointerDown
+            ? Math.min(dp(2) * (1 + repeat / 6f), dp(8))
+            : Math.min(dp(16) * (1 + repeat / 4f), dp(64));
         float tx = Math.max(0, Math.min(overlayWebView.getWidth() - 1, pointerX + dx * step));
         float ty = Math.max(0, Math.min(overlayWebView.getHeight() - 1, pointerY + dy * step));
         // Several small moves, like a finger, rather than one jump.

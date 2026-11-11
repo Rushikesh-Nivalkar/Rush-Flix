@@ -77,7 +77,7 @@ Keep the token handy (e.g. in your phone's notes). You'll paste it during setup.
 
 **Using the remote while watching:** **OK** = play/pause · **Left/Right** = back/forward 10 s · **Rewind/Fast-forward** = 30 s · **Up/Down** = show the player's buttons (subtitles, quality…): move with the arrows, **OK** to choose, **Back** to close · **Back** = leave the player.
 
-**If a puzzle shows before the video** ("Drag the slider to fit the puzzle"): press any arrow for a red pointer (it may already be there; if not, **hold OK** for a second). Until the video starts, the arrows always move the pointer. Move it onto the slider button, press **OK** to grab, hold **Right** to drag, **OK** to let go. **Back** hides the pointer. Then please send a Bug Report from Settings → Feedback: it includes which site showed the puzzle.
+**If a puzzle shows before the video** ("Drag the slider to fit the puzzle"): press any arrow for a red pointer (it may already be there; if not, **hold OK** for a second). Until the video starts, the arrows always move the pointer. Move it onto the slider button, press **OK** to grab, tap or hold **Right** to drag (single taps move a tiny step for lining the piece up), **OK** to let go. **Back** hides the pointer. Then please send a Bug Report from Settings → Feedback: it includes which site showed the puzzle.
 
 ### 3. Updating
 
