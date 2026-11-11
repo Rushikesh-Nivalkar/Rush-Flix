@@ -1,12 +1,13 @@
 {
   "name": "rush-flix",
-  "version": "2.9.0",
+  "version": "2.10.0",
   "description": "Rush Flix — private Netflix-style TV app for Chromecast, Google TV, Android TV",
   "private": true,
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "test": "vitest run",
     "check:updater": "node scripts/check-updater.mjs",
     "update:blocklist": "node scripts/update-blocklist.mjs",
     "serve": "vite preview --host",
@@ -27,6 +28,8 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.7.0",
-    "vite": "^7.3.1"
+    "jsdom": "^31.0.0",
+    "vite": "^7.3.1",
+    "vitest": "^5.1.0"
   }
 }

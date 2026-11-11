@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { APP_VERSION } from "../utils/updateChecker";
+import { getPlayerDiag, clearPlayerDiag, formatPlayerDiag } from "../utils/playerDiag";
 
 const ISSUE_TYPES = [
   { value: "bug", label: "Bug Report", emoji: "🐛" },
@@ -17,7 +18,7 @@ function buildIssueTitle(type, body) {
   return `[${prefix}] ${snippet}${body.trim().length > 60 ? "…" : ""}`;
 }
 
-function buildIssueBody(type, body) {
+export function buildIssueBody(type, body, diag = "") {
   const typeLabel = ISSUE_TYPES.find((t) => t.value === type)?.label || type;
   return [
     `**Type:** ${typeLabel}`,
@@ -27,6 +28,7 @@ function buildIssueBody(type, body) {
     "---",
     "",
     body.trim(),
+    ...(diag ? ["", "---", "", diag] : []),
   ].join("\n");
 }
 
@@ -38,6 +40,7 @@ export default function FeedbackSection() {
   const [issueUrl, setIssueUrl] = useState("");
 
   const token = import.meta.env.VITE_FEEDBACK_TOKEN || "";
+  const diag = type === "bug" ? formatPlayerDiag(getPlayerDiag()) : "";
 
   async function handleSubmit() {
     if (!body.trim()) return;
@@ -60,7 +63,7 @@ export default function FeedbackSection() {
           },
           body: JSON.stringify({
             title: buildIssueTitle(type, body),
-            body: buildIssueBody(type, body),
+            body: buildIssueBody(type, body, diag),
           }),
         }
       );
@@ -68,6 +71,7 @@ export default function FeedbackSection() {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.message || `HTTP ${res.status}`);
       }
+      if (diag) clearPlayerDiag();
       const data = await res.json();
       setIssueUrl(data.html_url || "");
       setStatus("success");
@@ -145,6 +149,11 @@ export default function FeedbackSection() {
           maxLength={2000}
         />
         <div className="feedback-char-count">{body.length}/2000</div>
+        {diag && (
+          <div className="feedback-char-count">
+            Includes the puzzle checks the player saw (site names only)
+          </div>
+        )}
 
         {status === "error" && (
           <div className="feedback-error">{errorMsg}</div>

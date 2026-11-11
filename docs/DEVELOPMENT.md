@@ -76,15 +76,16 @@ npm run deploy:webos          # optional: ares-install + launch on the paired TV
    - `appinfo.json` → `version` (webOS)
    - `android/app/build.gradle` → `versionCode` (+1) and `versionName`
    - `src/utils/updateChecker.js` → fallback `APP_VERSION`
-3. Refresh the ad blocklist: `npm run update:blocklist` (HaGeZi Pro + `scripts/adblock-custom.txt` → `android/app/src/main/assets/adblock/domains.txt`; commit it).
-4. Build the APK (clean) and IPK as above. If Gradle fails, **don't** reuse whatever APK is left in `build/outputs`. It's the previous version.
-5. Verify the APK: signature SHA-256 starts `63cfea24`; `aapt2 dump badging` shows the new `versionCode`.
-6. Commit, tag `vX.Y.Z`, push, and create the GitHub release with **both** assets named exactly:
+3. Run the tests: `npm test` (Vitest, `tests/`). They also fail if the version numbers above disagree, and they run `PLAYER_SCRIPT` from `MainActivity.java` in a fake page, so a broken quote in the Java string shows up here.
+4. Refresh the ad blocklist: `npm run update:blocklist` (HaGeZi Pro + `scripts/adblock-custom.txt` → `android/app/src/main/assets/adblock/domains.txt`; commit it).
+5. Build the APK (clean) and IPK as above. If Gradle fails, **don't** reuse whatever APK is left in `build/outputs`. It's the previous version.
+6. Verify the APK: signature SHA-256 starts `63cfea24`; `aapt2 dump badging` shows the new `versionCode`.
+7. Commit, tag `vX.Y.Z`, push, and create the GitHub release with **both** assets named exactly:
    - `Rush-Flix_VX.Y.Z.apk`
    - `Rush-Flix_VX.Y.Z.ipk`
 
    The in-app updater finds them by these names.
-7. **Run the release check:**
+8. **Run the release check:**
    ```bash
    npm run check:updater            # expects v<package.json version>
    npm run check:updater -- v2.7.3  # or a specific tag
@@ -132,6 +133,10 @@ npm run deploy:webos          # optional: ares-install + launch on the paired TV
   - At the limit `next(…, hold=true)`: Java stores a label; the new page's player frame reads it once (`takeHold()`), sets `hold` (every `play` paused) and shows `#rf-still` (Continue watching / Stop) over the loaded episode. No timeout. Continue → plays; Stop or Back → `RushFlixProgress.stop()` → player closes.
   - `next()` also posts `rushflix_episode` (and `TV_STATE` from Cineby's own episode menu is forwarded the same way) → `TVPage.handlePlayerEpisode` updates `playing`, so progress / Watched / Continue Watching follow the episode really playing. React never reopens the overlay (TVPlayer's `url` state is fixed after mount).
   - LG / browser: plain iframe, no script → no autoplay (episode just ends).
+
+- **Pointer mode + puzzle log** (v2.10.0). Cineby sometimes shows a "Drag the slider to fit the puzzle" check before an episode. The app never solves it; the viewer does, with the remote:
+  - Before a `<video>` exists, any arrow shows a red pointer (Java `View` over the overlay). Arrows move it (faster when held, finer while dragging), OK = finger down / let go (real `MotionEvent`s on the overlay WebView, like `tapPlayerCentre`), Back hides it. It goes away when the video appears, on episode change and on close; `autoTap` pauses while it's up.
+  - `PLAYER_SCRIPT` looks for puzzle / human-check text in every frame for ~60 s (stops once a video exists) and calls `RushFlixProgress.puzzle(host, path, thirdPartyHosts, text)`: no query strings. Java keeps the last 5 in the app's `localStorage` (`rushflix_player_diag`) and, on TVs (leanback), brings the pointer up. Bug reports from Settings → Feedback include them (`src/utils/playerDiag.js`), then the log is cleared. If the host is an ad network, add it to `scripts/adblock-custom.txt`.
 
 - **Resume / start over** (Android only: LG's plain iframe can't seek). Movies: part-watched shows Resume + Start from beginning. Episodes: OK on a part-watched one opens `ResumeDialog` (`[data-nav-trap]` keeps tvNav inside it; Back closes it via `window.__dialogClose` or its key listener). Finished titles always start at 0. `fromStart` passes position 0 to `TVPlayer`. Cineby keeps its own movie position (`vs_mov_{id}` in localStorage) and resumes from it, so `PLAYER_SCRIPT` wipes those keys at document start; the app's saved time (`seek_abs`) is the only resume source. Episodes opened by direct URL don't self-resume.
 

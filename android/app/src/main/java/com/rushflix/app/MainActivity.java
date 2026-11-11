@@ -1,10 +1,14 @@
 package com.rushflix.app;
 
+import android.content.pm.PackageManager;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Message;
 import android.os.SystemClock;
 import android.util.Log;
+import android.util.TypedValue;
+import android.view.Gravity;
 import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
@@ -19,6 +23,8 @@ import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.FrameLayout;
+import android.widget.TextView;
 import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
 import com.getcapacitor.BridgeActivity;
@@ -26,6 +32,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
+import org.json.JSONObject;
 
 public class MainActivity extends BridgeActivity {
     private static final String TAG = "MainActivity";
@@ -59,6 +66,15 @@ public class MainActivity extends BridgeActivity {
     private volatile boolean syntheticTouch = false;
     // False when the WebView can't inject at document start → onPageFinished fallback.
     private boolean scriptInAllFrames = false;
+    // Pointer mode: before the video exists (landing page, a "slide the puzzle" check)
+    // the arrows move an on-screen pointer and OK presses / releases a finger there,
+    // so the viewer can drag a slider with the remote. UI thread only.
+    private boolean pointerMode = false;
+    private boolean pointerDown = false;
+    private float pointerX, pointerY;
+    private long pointerDownTime;
+    private View pointerView;
+    private TextView pointerHint;
 
     // Runs in EVERY frame of the overlay WebView (embed players nest the real
     // <video> inside cross-origin iframes, which evaluateJavascript can't reach).
@@ -89,6 +105,17 @@ public class MainActivity extends BridgeActivity {
         "Element.prototype.setAttribute=function(n,u){" +
         "if(this instanceof HTMLScriptElement&&String(n).toLowerCase()==='src'&&badSrc(u)){this.type='rf/blocked';return;}" +
         "return sa.apply(this,arguments);};}catch(e){}" +
+        // Puzzle / human check shown instead of the video: report which site serves it
+        // (host, path start, third-party script/frame hosts; never query strings) so it
+        // can be identified from Feedback. Checks for ~60 s, stops once a video exists.
+        "var pzN=0;function pz(){if(pzN++>40||document.querySelector('video'))return;var b=document.body;" +
+        "var t=b?(b.innerText||b.textContent||''):'';" +
+        "if(/slide to complete|drag the slider|fit the puzzle|complete the puzzle|verify you are human|captcha/i.test(t)){" +
+        "var hs={};[].forEach.call(document.querySelectorAll('script[src],iframe[src]'),function(e){" +
+        "try{var h=new URL(e.getAttribute('src'),location.href).hostname;if(h&&h!==location.hostname)hs[h]=1;}catch(x){}});" +
+        "try{RushFlixProgress.puzzle(location.hostname,location.pathname.split('/').slice(0,3).join('/')," +
+        "Object.keys(hs).slice(0,12).join(' '),t.replace(/\\s+/g,' ').trim().slice(0,100));}catch(x){}return;}" +
+        "setTimeout(pz,1500);}setTimeout(pz,1500);" +
         "var v=null,ctl=false,sel=-1,opener=null;" +
         // The player's own wrapper (Cineby: #player). Its show/hide timer runs on pointer
         // events, so wake() = synthetic pointermove → bar shows, 2.8 s auto-hide restarts.
@@ -365,9 +392,33 @@ public class MainActivity extends BridgeActivity {
             runOnUiThread(MainActivity.this::hidePlayerOverlay);
         }
 
+        // PLAYER_SCRIPT found a puzzle / human check. Saved for Feedback (last 5) and,
+        // on a TV, the pointer comes up so the remote can drag the slider.
+        @JavascriptInterface
+        public void puzzle(String host, String path, String thirdParty, String text) {
+            Log.w(TAG, "Puzzle check on " + host + path + " 3p=[" + thirdParty + "]");
+            try {
+                JSONObject e = new JSONObject();
+                e.put("time", System.currentTimeMillis());
+                e.put("host", host);
+                e.put("path", path);
+                e.put("thirdParty", thirdParty);
+                e.put("text", text);
+                e.put("player", playerHost == null ? "" : playerHost);
+                String js = "(function(e){try{var k='rushflix_player_diag';" +
+                    "var a=JSON.parse(localStorage.getItem(k)||'[]');a.push(e);" +
+                    "localStorage.setItem(k,JSON.stringify(a.slice(-5)));}catch(x){}})(" + e + ")";
+                main.post(() -> main.evaluateJavascript(js, null));
+            } catch (Exception ignored) {}
+            if (getPackageManager().hasSystemFeature(PackageManager.FEATURE_LEANBACK)) {
+                runOnUiThread(MainActivity.this::enterPointerMode);
+            }
+        }
+
         @JavascriptInterface
         public void videoReady() {
             videoAttached = true;
+            runOnUiThread(MainActivity.this::exitPointerMode);
             // Resume position: applied once, as soon as the first video appears.
             if (pendingSeekTo > 0) {
                 double seekTo = pendingSeekTo;
@@ -430,6 +481,7 @@ public class MainActivity extends BridgeActivity {
         playerUrl = url;
         pendingHold = holdIt ? String.format(Locale.US, "S%02d E%02d", season, episode) : "";
         pendingSeekTo = 0;
+        exitPointerMode();
         videoAttached = false;
         controlsMode = false;
         overlayWebView.loadUrl(url);
@@ -438,10 +490,110 @@ public class MainActivity extends BridgeActivity {
 
     private void autoTap(int attempt) {
         overlayWebView.postDelayed(() -> {
-            if (!overlayVisible || videoAttached || attempt >= 6) return;
+            if (!overlayVisible || videoAttached || pointerMode || attempt >= 6) return;
             tapPlayerCentre();
             autoTap(attempt + 1);
         }, 2500);
+    }
+
+    private int dp(float v) {
+        return Math.round(TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP, v, getResources().getDisplayMetrics()));
+    }
+
+    private void enterPointerMode() {
+        if (pointerMode || !overlayVisible || overlayWebView == null || videoAttached) return;
+        ViewGroup decor = (ViewGroup) getWindow().getDecorView();
+        if (pointerView == null) {
+            int size = dp(30);
+            pointerView = new View(this);
+            pointerView.setLayoutParams(new FrameLayout.LayoutParams(size, size));
+            decor.addView(pointerView);
+            pointerHint = new TextView(this);
+            pointerHint.setText("Arrows move  ·  OK press / let go  ·  Back hides pointer");
+            pointerHint.setTextColor(0xFFFFFFFF);
+            pointerHint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+            pointerHint.setPadding(dp(16), dp(8), dp(16), dp(8));
+            GradientDrawable bg = new GradientDrawable();
+            bg.setColor(0xCC000000);
+            bg.setCornerRadius(dp(8));
+            pointerHint.setBackground(bg);
+            FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+            lp.bottomMargin = dp(28);
+            decor.addView(pointerHint, lp);
+        }
+        pointerMode = true;
+        pointerDown = false;
+        pointerX = overlayWebView.getWidth() / 2f;
+        pointerY = overlayWebView.getHeight() / 2f;
+        paintPointer();
+        pointerView.setVisibility(View.VISIBLE);
+        pointerHint.setVisibility(View.VISIBLE);
+        pointerView.bringToFront();
+        pointerHint.bringToFront();
+    }
+
+    private void exitPointerMode() {
+        if (!pointerMode) return;
+        if (pointerDown) {
+            sendPointerTouch(MotionEvent.ACTION_UP);
+            pointerDown = false;
+        }
+        pointerMode = false;
+        if (pointerView != null) pointerView.setVisibility(View.GONE);
+        if (pointerHint != null) pointerHint.setVisibility(View.GONE);
+    }
+
+    // Ring = hovering, filled = finger down (dragging).
+    private void paintPointer() {
+        GradientDrawable g = new GradientDrawable();
+        g.setShape(GradientDrawable.OVAL);
+        g.setStroke(dp(3), 0xFFE50914);
+        g.setColor(pointerDown ? 0xCCE50914 : 0x33FFFFFF);
+        pointerView.setBackground(g);
+        int half = pointerView.getLayoutParams().width / 2;
+        pointerView.setTranslationX(pointerX - half);
+        pointerView.setTranslationY(pointerY - half);
+    }
+
+    // Held arrow keys speed up; finer steps while dragging.
+    private void movePointer(int dx, int dy, int repeat) {
+        float step = (pointerDown ? 12 : 30) * Math.min(1 + repeat / 3f, 4f);
+        float tx = Math.max(0, Math.min(overlayWebView.getWidth() - 1, pointerX + dx * step));
+        float ty = Math.max(0, Math.min(overlayWebView.getHeight() - 1, pointerY + dy * step));
+        // Several small moves, like a finger, rather than one jump.
+        float sx = pointerX, sy = pointerY;
+        for (int i = 1; i <= 4; i++) {
+            pointerX = sx + (tx - sx) * i / 4f;
+            pointerY = sy + (ty - sy) * i / 4f;
+            if (pointerDown) sendPointerTouch(MotionEvent.ACTION_MOVE);
+        }
+        paintPointer();
+    }
+
+    private void pointerOk() {
+        if (!pointerDown) {
+            pointerDownTime = SystemClock.uptimeMillis();
+            sendPointerTouch(MotionEvent.ACTION_DOWN);
+            pointerDown = true;
+        } else {
+            sendPointerTouch(MotionEvent.ACTION_UP);
+            pointerDown = false;
+        }
+        paintPointer();
+    }
+
+    private void sendPointerTouch(int action) {
+        if (overlayWebView == null) return;
+        MotionEvent ev = MotionEvent.obtain(pointerDownTime, SystemClock.uptimeMillis(),
+            action, pointerX, pointerY, 0);
+        ev.setSource(InputDevice.SOURCE_TOUCHSCREEN);
+        syntheticTouch = true;
+        overlayWebView.dispatchTouchEvent(ev);
+        syntheticTouch = false;
+        ev.recycle();
     }
 
     private void setupOverlayWebView(WebView mainWebView) {
@@ -530,6 +682,7 @@ public class MainActivity extends BridgeActivity {
     private void showPlayerOverlay(String url, double seekTo) {
         if (overlayWebView == null) return;
         Log.d(TAG, "showPlayerOverlay: " + url + " seekTo=" + seekTo);
+        exitPointerMode();
         pendingSeekTo = seekTo;
         videoAttached = false;
         controlsMode = false;
@@ -547,6 +700,7 @@ public class MainActivity extends BridgeActivity {
 
     private void hidePlayerOverlay() {
         if (overlayWebView == null) return;
+        exitPointerMode();
         overlayWebView.loadUrl("about:blank");
         overlayWebView.setVisibility(View.GONE);
         overlayVisible = false;
@@ -592,6 +746,39 @@ public class MainActivity extends BridgeActivity {
             // ── Overlay visible: control the embed player directly ──────────
             if (overlayVisible && overlayWebView != null) {
                 autoStreak = 0; // someone's watching: any press restarts the autoplay count
+                // Pointer mode: arrows move the pointer, OK presses / lets go, Back hides it.
+                if (pointerMode) {
+                    int rep = event.getRepeatCount();
+                    switch (event.getKeyCode()) {
+                        case KeyEvent.KEYCODE_DPAD_LEFT:  movePointer(-1, 0, rep); return true;
+                        case KeyEvent.KEYCODE_DPAD_RIGHT: movePointer(1, 0, rep); return true;
+                        case KeyEvent.KEYCODE_DPAD_UP:    movePointer(0, -1, rep); return true;
+                        case KeyEvent.KEYCODE_DPAD_DOWN:  movePointer(0, 1, rep); return true;
+                        case KeyEvent.KEYCODE_DPAD_CENTER:
+                        case KeyEvent.KEYCODE_ENTER:
+                        case KeyEvent.KEYCODE_NUMPAD_ENTER:
+                            if (rep == 0) pointerOk();
+                            return true;
+                        case KeyEvent.KEYCODE_BACK:
+                            exitPointerMode();
+                            return true;
+                        default:
+                            return true;
+                    }
+                }
+                // No video yet (landing page, puzzle check): any arrow brings up the pointer.
+                if (!videoAttached) {
+                    switch (event.getKeyCode()) {
+                        case KeyEvent.KEYCODE_DPAD_LEFT:
+                        case KeyEvent.KEYCODE_DPAD_RIGHT:
+                        case KeyEvent.KEYCODE_DPAD_UP:
+                        case KeyEvent.KEYCODE_DPAD_DOWN:
+                            enterPointerMode();
+                            return true;
+                        default:
+                            break;
+                    }
+                }
                 // Controls mode (Up/Down): the arrows move a highlight over the player's
                 // own buttons and menus (CC, quality…); OK presses, Back closes/leaves.
                 switch (event.getKeyCode()) {
