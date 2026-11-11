@@ -75,6 +75,9 @@ public class MainActivity extends BridgeActivity {
     private long pointerDownTime;
     private View pointerView;
     private TextView pointerHint;
+    // PLAYER_SCRIPT saw a puzzle check and nothing has played since: arrows go to the
+    // pointer even though a <video> may already exist under the puzzle.
+    private volatile boolean puzzleUp = false;
 
     // Runs in EVERY frame of the overlay WebView (embed players nest the real
     // <video> inside cross-origin iframes, which evaluateJavascript can't reach).
@@ -107,8 +110,10 @@ public class MainActivity extends BridgeActivity {
         "return sa.apply(this,arguments);};}catch(e){}" +
         // Puzzle / human check shown instead of the video: report which site serves it
         // (host, path start, third-party script/frame hosts; never query strings) so it
-        // can be identified from Feedback. Checks for ~60 s, stops once a video exists.
-        "var pzN=0;function pz(){if(pzN++>40||document.querySelector('video'))return;var b=document.body;" +
+        // can be identified from Feedback. Checks for ~3 min and stops once a video is
+        // really playing: Cineby shows the puzzle over its player, so a <video> may exist.
+        "var pzN=0;function pz(){var pv=document.querySelector('video');" +
+        "if(pzN++>120||(pv&&pv.currentTime>0.5))return;var b=document.body;" +
         "var t=b?(b.innerText||b.textContent||''):'';" +
         "if(/slide to complete|drag the slider|fit the puzzle|complete the puzzle|verify you are human|captcha/i.test(t)){" +
         "var hs={};[].forEach.call(document.querySelectorAll('script[src],iframe[src]'),function(e){" +
@@ -341,6 +346,11 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public void playState(boolean playing) {
             updateKeepAwake("overlay", playing);
+            // Playing = past any puzzle check: the pointer's job is done.
+            if (playing) {
+                puzzleUp = false;
+                runOnUiThread(MainActivity.this::exitPointerMode);
+            }
         }
 
         @JavascriptInterface
@@ -410,6 +420,7 @@ public class MainActivity extends BridgeActivity {
                     "localStorage.setItem(k,JSON.stringify(a.slice(-5)));}catch(x){}})(" + e + ")";
                 main.post(() -> main.evaluateJavascript(js, null));
             } catch (Exception ignored) {}
+            puzzleUp = true;
             if (getPackageManager().hasSystemFeature(PackageManager.FEATURE_LEANBACK)) {
                 runOnUiThread(MainActivity.this::enterPointerMode);
             }
@@ -418,7 +429,8 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public void videoReady() {
             videoAttached = true;
-            runOnUiThread(MainActivity.this::exitPointerMode);
+            // The puzzle can sit over an existing <video>: keep the pointer until it plays.
+            if (!puzzleUp) runOnUiThread(MainActivity.this::exitPointerMode);
             // Resume position: applied once, as soon as the first video appears.
             if (pendingSeekTo > 0) {
                 double seekTo = pendingSeekTo;
@@ -482,6 +494,7 @@ public class MainActivity extends BridgeActivity {
         pendingHold = holdIt ? String.format(Locale.US, "S%02d E%02d", season, episode) : "";
         pendingSeekTo = 0;
         exitPointerMode();
+        puzzleUp = false;
         videoAttached = false;
         controlsMode = false;
         overlayWebView.loadUrl(url);
@@ -502,7 +515,7 @@ public class MainActivity extends BridgeActivity {
     }
 
     private void enterPointerMode() {
-        if (pointerMode || !overlayVisible || overlayWebView == null || videoAttached) return;
+        if (pointerMode || !overlayVisible || overlayWebView == null) return;
         ViewGroup decor = (ViewGroup) getWindow().getDecorView();
         if (pointerView == null) {
             int size = dp(30);
@@ -683,6 +696,7 @@ public class MainActivity extends BridgeActivity {
         if (overlayWebView == null) return;
         Log.d(TAG, "showPlayerOverlay: " + url + " seekTo=" + seekTo);
         exitPointerMode();
+        puzzleUp = false;
         pendingSeekTo = seekTo;
         videoAttached = false;
         controlsMode = false;
@@ -701,6 +715,7 @@ public class MainActivity extends BridgeActivity {
     private void hidePlayerOverlay() {
         if (overlayWebView == null) return;
         exitPointerMode();
+        puzzleUp = false;
         overlayWebView.loadUrl("about:blank");
         overlayWebView.setVisibility(View.GONE);
         overlayVisible = false;
@@ -767,7 +782,15 @@ public class MainActivity extends BridgeActivity {
                     }
                 }
                 // No video yet (landing page, puzzle check): any arrow brings up the pointer.
-                if (!videoAttached) {
+                // Hold OK (about half a second): pointer comes up anywhere, for a check the
+                // script didn't recognise. The first press still toggled play/pause.
+                int okKey = event.getKeyCode();
+                if ((okKey == KeyEvent.KEYCODE_DPAD_CENTER || okKey == KeyEvent.KEYCODE_ENTER
+                        || okKey == KeyEvent.KEYCODE_NUMPAD_ENTER) && event.getRepeatCount() > 0) {
+                    if (event.getRepeatCount() == 1) enterPointerMode();
+                    return true;
+                }
+                if (!videoAttached || puzzleUp) {
                     switch (event.getKeyCode()) {
                         case KeyEvent.KEYCODE_DPAD_LEFT:
                         case KeyEvent.KEYCODE_DPAD_RIGHT:

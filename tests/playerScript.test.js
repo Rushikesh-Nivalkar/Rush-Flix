@@ -65,6 +65,25 @@ describe("PLAYER_SCRIPT", () => {
     expect(window.RushFlixProgress.puzzle).toHaveBeenCalledTimes(1);
   });
 
+  // v2.10.0 bug: Cineby shows the puzzle over its player, so a <video> already exists.
+  it("reports a puzzle shown over a video that hasn't started", () => {
+    document.body.innerHTML =
+      '<video></video><div class="cap">Drag the slider to fit the puzzle</div>';
+    run();
+    vi.advanceTimersByTime(1600);
+    expect(window.RushFlixProgress.puzzle).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops checking once the video is really playing", () => {
+    document.body.innerHTML = "<video></video>";
+    Object.defineProperty(document.querySelector("video"), "currentTime", { value: 12, configurable: true });
+    run();
+    vi.advanceTimersByTime(1600);
+    document.body.insertAdjacentHTML("beforeend", "<div>Slide to complete the puzzle</div>");
+    vi.advanceTimersByTime(5000);
+    expect(window.RushFlixProgress.puzzle).not.toHaveBeenCalled();
+  });
+
   it("stays quiet on a normal page", () => {
     document.body.innerHTML = "<div>Game of Thrones 2011 · S01 E01</div>";
     run();
@@ -72,9 +91,9 @@ describe("PLAYER_SCRIPT", () => {
     expect(window.RushFlixProgress.puzzle).not.toHaveBeenCalled();
   });
 
-  it("stops checking after about a minute", () => {
+  it("stops checking after about three minutes", () => {
     run();
-    vi.advanceTimersByTime(70000);
+    vi.advanceTimersByTime(200000);
     document.body.innerHTML = "<div>Slide to complete the puzzle</div>";
     vi.advanceTimersByTime(5000);
     expect(window.RushFlixProgress.puzzle).not.toHaveBeenCalled();
